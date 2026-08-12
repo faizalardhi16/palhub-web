@@ -1,4 +1,4 @@
-export type ToolType = "crawl" | "generate_doc" | "knowledge_query";
+export type ToolType = "crawl" | "generate_doc" | "knowledge_query" | "web_search";
 
 export interface Specialist {
   id: number;

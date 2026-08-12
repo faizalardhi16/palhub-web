@@ -2,9 +2,10 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { join } from "node:path";
 import { getDb } from "./db/connection.js";
-import { seedIfEmpty } from "./db/seed.js";
+import { seedIfEmpty, ensureSeedTools } from "./db/seed.js";
 import { config } from "./config.js";
 import { OpenAiCompatibleLlmClient } from "./llm/client.js";
+import { WebSearchService } from "./services/search.service.js";
 import { SpecialistService } from "./services/specialist.service.js";
 import { ProcedureService } from "./services/procedure.service.js";
 import { ToolService } from "./services/tool.service.js";
@@ -14,6 +15,7 @@ import { ToolExecutorRegistry } from "./engines/registry.js";
 import { CrawlExecutor } from "./engines/crawl.executor.js";
 import { GenerateDocExecutor } from "./engines/generate-doc.executor.js";
 import { KnowledgeQueryExecutor } from "./engines/knowledge-query.executor.js";
+import { WebSearchExecutor } from "./engines/web-search.executor.js";
 import { PalhubMcpServer } from "./mcp/server.js";
 import { registerSpecialistRoutes } from "./routes/specialists.js";
 import { registerToolRoutes } from "./routes/tools.js";
@@ -28,6 +30,10 @@ async function main(): Promise<void> {
   if (seeded.specialists > 0) {
     console.log(`🌱 Seed: ${seeded.specialists} specialist, ${seeded.procedures} procedure, ${seeded.tools} tool`);
   }
+  const migratedTools = ensureSeedTools(db);
+  if (migratedTools > 0) {
+    console.log(`🧬 Migration: +${migratedTools} tool ditambahkan ke specialist existing`);
+  }
 
   // --- Dependencies (DI graph) ---
   const specialistService = new SpecialistService(db);
@@ -35,11 +41,14 @@ async function main(): Promise<void> {
   const toolService = new ToolService(db);
   const knowledge = new KnowledgeService(db);
   const llm = new OpenAiCompatibleLlmClient(config.llm);
+  const search = new WebSearchService(config.search.provider, config.search.apiKey);
+  console.log(`🔍 Web search provider: ${search.active}`);
 
   const registry = new ToolExecutorRegistry();
-  registry.register(new CrawlExecutor());
+  registry.register(new CrawlExecutor(search));
   registry.register(new GenerateDocExecutor());
   registry.register(new KnowledgeQueryExecutor());
+  registry.register(new WebSearchExecutor(search));
 
   const playground = new PlaygroundService({
     registry,

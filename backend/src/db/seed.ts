@@ -74,6 +74,7 @@ export function seedIfEmpty(db: Database.Database): SeedResult {
     const genDocId = Number(genDoc.lastInsertRowid);
 
     insertTool.run(financeId, "crawl", "Crawl standard code / aturan terbaru dari web. Input cukup prompt.", "crawl", null);
+    insertTool.run(financeId, "web_search", "Cari informasi dari web (Google via DuckDuckGo/Serper). Return judul, URL, snippet.", "web_search", null);
     insertTool.run(financeId, "generate_doc", "Generate dokumen .MD sesuai procedure Generate Document.", "generate_doc", genDocId);
     insertTool.run(financeId, "knowledge_search", "Cari knowledge yang sudah di-crawl / disimpan.", "knowledge_query", null);
 
@@ -102,4 +103,37 @@ export function seedIfEmpty(db: Database.Database): SeedResult {
     procedures: 2,
     tools: 5,
   };
+}
+
+/**
+ * ensureSeedTools — idempotent migration untuk DB yang sudah ke-seed.
+ * Menambah tool baru (misal web_search) ke specialist yang sudah ada,
+ * tanpa nge-drop data knowledge yang udah di-crawl.
+ */
+export function ensureSeedTools(db: Database.Database): number {
+  const getSpecialist = db.prepare("SELECT id FROM specialists WHERE name = ?");
+  const hasTool = db.prepare(
+    "SELECT id FROM tools WHERE specialist_id = ? AND name = ?"
+  );
+  const insertTool = db.prepare(
+    "INSERT INTO tools (specialist_id, name, description, type, procedure_id) VALUES (?, ?, ?, ?, ?)"
+  );
+
+  const ensure = (specialistName: string, name: string, description: string, type: string): number => {
+    const spec = getSpecialist.get(specialistName) as { id: number } | undefined;
+    if (!spec) return 0;
+    const existing = hasTool.get(spec.id, name) as { id: number } | undefined;
+    if (existing) return 0;
+    insertTool.run(spec.id, name, description, type, null);
+    return 1;
+  };
+
+  let added = 0;
+  added += ensure(
+    "Finance",
+    "web_search",
+    "Cari informasi dari web (Google via DuckDuckGo/Serper). Return judul, URL, snippet.",
+    "web_search"
+  );
+  return added;
 }

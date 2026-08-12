@@ -7,6 +7,7 @@ import type { Specialist, Tool } from "../types";
 
 const TOOL_TYPE_LABELS: Record<Tool["type"], string> = {
   crawl: "Crawl",
+  web_search: "Web Search",
   generate_doc: "Generate Doc",
   knowledge_query: "Knowledge Query",
 };

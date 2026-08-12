@@ -1,0 +1,13 @@
+console.log("starting...");
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+console.log("imported...");
+const transport = new StreamableHTTPClientTransport(new URL("http://localhost:8787/mcp"));
+const client = new Client({ name: "test", version: "1.0" });
+console.log("connecting...");
+await client.connect(transport);
+console.log("connected!");
+const tools = await client.listTools();
+console.log("TOOLS:", tools.tools.map(t => t.name).join(", "));
+await client.close();
+process.exit(0);

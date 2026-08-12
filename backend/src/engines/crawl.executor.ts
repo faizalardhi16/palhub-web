@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import type { ToolExecutor, ToolExecutionContext, ToolExecutionResult } from "./types.js";
+import type { WebSearchService } from "../services/search.service.js";
 
 const MAX_SOURCES = 5;
 const MAX_CONTENT_CHARS = 4000;
@@ -17,13 +18,15 @@ interface SourceCandidate {
 /**
  * CrawlExecutor — prompt-only input. Strategy:
  *  1. Extract URLs directly from the prompt → fetch them.
- *  2. No URLs → ask LLM to suggest official source URLs (grounded in the
- *     specialist persona), then fetch candidates that respond 200.
+ *  2. No URLs → web_search (topic → result URLs), then fetch candidates.
+ *  3. Search empty/fails → ask LLM to suggest official source URLs (grounded
+ *     in the specialist persona), then fetch candidates that respond 200.
  * Fetched content is saved into the specialist's knowledge group.
- * (Avoids search engines — datacenter IPs get blocked.)
  */
 export class CrawlExecutor implements ToolExecutor {
   readonly type = "crawl";
+
+  constructor(private readonly search: WebSearchService) {}
 
   async execute(ctx: ToolExecutionContext): Promise<ToolExecutionResult> {
     const prompt = String(ctx.input.prompt ?? "").trim();
@@ -72,7 +75,13 @@ export class CrawlExecutor implements ToolExecutor {
       return explicitUrls.map((url) => ({ url, title: "" }));
     }
 
-    // LLM-suggested sources (grounded in the specialist persona)
+    // 1. Web search: topic → result URLs
+    const searchResults = await this.search.search(prompt, MAX_SOURCES);
+    if (searchResults.length > 0) {
+      return searchResults.map((r) => ({ url: r.url, title: r.title }));
+    }
+
+    // 2. Fallback: LLM-suggested sources (grounded in the specialist persona)
     try {
       const system = [
         `Kamu adalah ${ctx.specialist.name}. ${ctx.specialist.description ?? ""}`,

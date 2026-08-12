@@ -6,10 +6,16 @@ export interface LlmConfig {
   model: string;
 }
 
+export interface SearchConfig {
+  provider: "duckduckgo" | "serper";
+  apiKey: string;
+}
+
 export interface AppConfig {
   port: number;
   dataDir: string;
   llm: LlmConfig;
+  search: SearchConfig;
 }
 
 export const config: AppConfig = {
@@ -19,5 +25,9 @@ export const config: AppConfig = {
     baseUrl: process.env.LLM_BASE_URL ?? "https://api.deepseek.com/v1",
     apiKey: process.env.LLM_API_KEY ?? "",
     model: process.env.LLM_MODEL ?? "deepseek-chat",
+  },
+  search: {
+    provider: (process.env.SEARCH_PROVIDER as SearchConfig["provider"]) ?? "duckduckgo",
+    apiKey: process.env.SEARCH_API_KEY ?? "",
   },
 };

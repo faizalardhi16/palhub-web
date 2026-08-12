@@ -22,7 +22,7 @@ export const toolCreateSchema = z.object({
     .max(80)
     .regex(/^[a-z0-9_]+$/, "Nama tool: huruf kecil, angka, underscore (contoh: generate_doc)"),
   description: z.string().max(2000).default(""),
-  type: z.enum(["crawl", "generate_doc", "knowledge_query"]),
+  type: z.enum(["crawl", "generate_doc", "knowledge_query", "web_search"]),
   procedure_id: z.number().int().positive().nullable().default(null),
 });
 

@@ -70,11 +70,17 @@ Panggil finance_generate_doc: "buat dokumen prosedur CoA sesuai template"
 
 | Type | Behavior |
 |------|----------|
-| `crawl` | Input prompt → extract URL dari prompt, atau LLM menyarankan sumber resmi → fetch → simpan ke Knowledge |
+| `web_search` | Input prompt → search web (DuckDuckGo free / Serper via `SEARCH_API_KEY`) → return judul, URL, snippet |
+| `crawl` | Input prompt → extract URL dari prompt, atau pakai `web_search` untuk cari sumber → fetch → simpan ke Knowledge |
 | `generate_doc` | Input prompt → LLM generate .MD mengikuti template Procedure → simpan ke `data/documents/` + Knowledge |
 | `knowledge_query` | Input query → FTS5 search di Knowledge specialist → return top chunks + sumber |
 
 Tambah tipe baru = buat class executor baru (implement `ToolExecutor`) + register di `server.ts`. Tanpa if-else chain.
+
+### Web Search Provider
+
+- `SEARCH_PROVIDER=duckduckgo` (default) — gratis, tanpa API key, aman dari IP datacenter.
+- `SEARCH_PROVIDER=serper` + `SEARCH_API_KEY=...` — Google SERP API (daftar di serper.dev), hasil lebih akurat. Kalau key kosong, otomatis fallback ke duckduckgo.
 
 ## API
 
