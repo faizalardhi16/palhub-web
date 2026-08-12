@@ -5,3 +5,7 @@ dist/
 *.log
 .env
 .DS_Store
+
+# test scripts
+backend/mcp-*.mjs
+backend/mcp-call-curl.sh
