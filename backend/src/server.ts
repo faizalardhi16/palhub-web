@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import { join } from "node:path";
 import { getDb } from "./db/connection.js";
 import { seedIfEmpty } from "./db/seed.js";
 import { config } from "./config.js";
@@ -19,6 +20,7 @@ import { registerToolRoutes } from "./routes/tools.js";
 import { registerProcedureRoutes } from "./routes/procedures.js";
 import { registerKnowledgeRoutes } from "./routes/knowledge.js";
 import { registerPlaygroundRoutes } from "./routes/playground.js";
+import { registerStatic } from "./routes/static.js";
 
 async function main(): Promise<void> {
   const db = getDb();
@@ -70,6 +72,9 @@ async function main(): Promise<void> {
   registerProcedureRoutes(app, procedureService);
   registerKnowledgeRoutes(app, knowledge);
   registerPlaygroundRoutes(app, playground);
+
+  // Static frontend (web/dist) — UI + API + MCP satu origin
+  registerStatic(app, join(process.cwd(), "../web/dist"));
 
   // MCP over Streamable HTTP
   app.all("/mcp", async (request, reply) => {
