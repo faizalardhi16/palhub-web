@@ -1,19 +1,36 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
+import {
+  ArrowLeftIcon,
+  BookIcon,
+  BrainIcon,
+  GridIcon,
+  PlayIcon,
+  PlusIcon,
+  SearchIcon,
+  ToolIcon,
+  TrashIcon,
+} from "../components/Icons";
 import type { Knowledge, Procedure, Tool } from "../types";
 
 type Tab = "tools" | "procedures" | "knowledge";
 
 const TOOL_TYPE_LABELS: Record<Tool["type"], string> = {
-  crawl: "🕷️ Crawl",
-  generate_doc: "📄 Generate Doc",
-  knowledge_query: "🔍 Knowledge Query",
+  crawl: "Crawl",
+  generate_doc: "Generate Doc",
+  knowledge_query: "Knowledge Query",
 };
 
 const EMPTY_TOOL = { name: "", description: "", type: "knowledge_query" as Tool["type"], procedure_id: null as number | null };
 const EMPTY_PROCEDURE = { name: "", description: "", template: "" };
 const EMPTY_KNOWLEDGE = { title: "", content: "", source: "" };
+
+function formatDate(value: string) {
+  if (!value) return "No timestamp";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
+}
 
 export default function SpecialistDetail() {
   const { id } = useParams();
@@ -32,6 +49,11 @@ export default function SpecialistDetail() {
   const [knowledgeForm, setKnowledgeForm] = useState(EMPTY_KNOWLEDGE);
   const [error, setError] = useState("");
 
+  const specialistSlug = useMemo(() => {
+    const normalized = name.trim().toLowerCase().replace(/\s+/g, "_");
+    return normalized || "specialist";
+  }, [name]);
+
   const load = useCallback(async () => {
     try {
       const [spec, ts, ps, ks] = await Promise.all([
@@ -40,7 +62,7 @@ export default function SpecialistDetail() {
         api.listProcedures(specialistId),
         api.listKnowledge(specialistId),
       ]);
-      const found = spec.find((s) => s.id === specialistId);
+      const found = spec.find((item) => item.id === specialistId);
       if (found) {
         setName(found.name);
         setDescription(found.description);
@@ -92,249 +114,382 @@ export default function SpecialistDetail() {
   };
 
   return (
-    <div>
+    <div className="page-stack">
       <Link to="/" className="back-link">
-        ← Semua specialists
+        <ArrowLeftIcon className="icon" />
+        <span>Semua specialists</span>
       </Link>
-      <h1>{name}</h1>
-      <p className="sub">{description}</p>
 
-      <div className="row" style={{ marginBottom: 16 }}>
-        <Link to={`/playground/${specialistId}`}>
-          <button className="primary">▶ Buka Playground</button>
-        </Link>
-        <button
-          className="danger"
-          onClick={async () => {
-            if (confirm(`Hapus specialist "${name}" beserta semua tools/procedures/knowledge?`)) {
-              await api.deleteSpecialist(specialistId);
-              location.href = "/";
-            }
-          }}
-        >
-          Hapus
-        </button>
-      </div>
+      <section className="hero-section compact-hero">
+        <div className="hero-copy">
+          <span className="eyebrow">Specialist Workbench</span>
+          <h2 className="hero-title">{name || "Loading specialist..."}</h2>
+          <p className="hero-text">{description || "Atur tools, procedures, dan knowledge dari satu workbench yang lebih fokus dan operasional."}</p>
+          <div className="hero-actions">
+            <Link to={`/playground/${specialistId}`}>
+              <button className="primary accent-violet">
+                <PlayIcon className="icon" />
+                <span>Buka Playground</span>
+              </button>
+            </Link>
+            <button
+              className="danger"
+              onClick={async () => {
+                if (window.confirm(`Hapus specialist \"${name}\" beserta semua tools, procedures, dan knowledge?`)) {
+                  await api.deleteSpecialist(specialistId);
+                  window.location.href = "/";
+                }
+              }}
+            >
+              <TrashIcon className="icon" />
+              <span>Hapus specialist</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="hero-grid hero-grid-3">
+          <div className="metric-card">
+            <span className="metric-label">Tool coverage</span>
+            <strong>{tools.length}</strong>
+            <p>Executable entry points for MCP and UI.</p>
+          </div>
+          <div className="metric-card">
+            <span className="metric-label">Procedure library</span>
+            <strong>{procedures.length}</strong>
+            <p>Reusable output structure and workflow templates.</p>
+          </div>
+          <div className="metric-card metric-card-accent">
+            <span className="metric-label">Knowledge base</span>
+            <strong>{knowledge.length}</strong>
+            <p>Stored context that keeps specialist answers anchored.</p>
+          </div>
+        </div>
+      </section>
 
       {error && <div className="err-box">{error}</div>}
 
-      <div className="tabs">
+      <div className="mode-tabs">
         {(
           [
-            ["tools", `🛠️ Tools (${tools.length})`],
-            ["procedures", `📋 Procedures (${procedures.length})`],
-            ["knowledge", `🧠 Knowledge (${knowledge.length})`],
-          ] as [Tab, string][]
-        ).map(([key, label]) => (
-          <button key={key} className={`tab ${tab === key ? "active" : ""}`} onClick={() => setTab(key)}>
-            {label}
+            ["tools", `Tools (${tools.length})`, ToolIcon],
+            ["procedures", `Procedures (${procedures.length})`, BookIcon],
+            ["knowledge", `Knowledge (${knowledge.length})`, BrainIcon],
+          ] as [Tab, string, typeof ToolIcon][]
+        ).map(([key, label, Icon]) => (
+          <button key={key} className={`mode-tab ${tab === key ? "active" : ""}`} onClick={() => setTab(key)}>
+            <Icon className="icon" />
+            <span>{label}</span>
           </button>
         ))}
       </div>
 
       {tab === "tools" && (
-        <div>
-          <div className="panel">
-            <h2>➕ Tool baru</h2>
-            <div className="field">
-              <label>Nama (MCP: {name.toLowerCase().replace(/\s+/g, "_")}_&lt;nama&gt;)</label>
-              <input
-                value={toolForm.name}
-                onChange={(e) => setToolForm({ ...toolForm, name: e.target.value })}
-                placeholder="generate_doc"
-              />
+        <section className="split-section detail-split">
+          <div className="surface-card form-panel">
+            <div className="section-heading-row">
+              <div>
+                <span className="eyebrow">Builder</span>
+                <h3>Tambah tool</h3>
+              </div>
+              <div className="section-chip">
+                <ToolIcon className="icon" />
+                <span>MCP alias: {specialistSlug}_name</span>
+              </div>
             </div>
-            <div className="field">
-              <label>Deskripsi</label>
-              <input
-                value={toolForm.description}
-                onChange={(e) => setToolForm({ ...toolForm, description: e.target.value })}
-                placeholder="Generate dokumen .MD sesuai procedure..."
-              />
-            </div>
-            <div className="field">
-              <label>Tipe</label>
-              <select
-                value={toolForm.type}
-                onChange={(e) => setToolForm({ ...toolForm, type: e.target.value as Tool["type"] })}
-              >
-                {(Object.keys(TOOL_TYPE_LABELS) as Tool["type"][]).map((t) => (
-                  <option key={t} value={t}>
-                    {TOOL_TYPE_LABELS[t]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {toolForm.type === "generate_doc" && (
+
+            <div className="field-grid">
               <div className="field">
-                <label>Procedure</label>
-                <select
-                  value={toolForm.procedure_id ?? ""}
-                  onChange={(e) =>
-                    setToolForm({ ...toolForm, procedure_id: e.target.value ? Number(e.target.value) : null })
-                  }
-                >
-                  <option value="">— tanpa procedure —</option>
-                  {procedures.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
+                <label>Nama tool</label>
+                <input
+                  value={toolForm.name}
+                  onChange={(e) => setToolForm({ ...toolForm, name: e.target.value })}
+                  placeholder="generate_doc"
+                />
+              </div>
+              <div className="field">
+                <label>Tipe</label>
+                <select value={toolForm.type} onChange={(e) => setToolForm({ ...toolForm, type: e.target.value as Tool["type"] })}>
+                  {(Object.keys(TOOL_TYPE_LABELS) as Tool["type"][]).map((type) => (
+                    <option key={type} value={type}>
+                      {TOOL_TYPE_LABELS[type]}
                     </option>
                   ))}
                 </select>
               </div>
-            )}
+              <div className="field field-span-2">
+                <label>Deskripsi</label>
+                <input
+                  value={toolForm.description}
+                  onChange={(e) => setToolForm({ ...toolForm, description: e.target.value })}
+                  placeholder="Tool ini menjalankan knowledge lookup atau dokumen generation dengan perilaku yang jelas."
+                />
+              </div>
+              {toolForm.type === "generate_doc" && (
+                <div className="field field-span-2">
+                  <label>Procedure terkait</label>
+                  <select
+                    value={toolForm.procedure_id ?? ""}
+                    onChange={(e) => setToolForm({ ...toolForm, procedure_id: e.target.value ? Number(e.target.value) : null })}
+                  >
+                    <option value="">Tanpa procedure</option>
+                    {procedures.map((procedure) => (
+                      <option key={procedure.id} value={procedure.id}>
+                        {procedure.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
             <button className="primary" onClick={createTool} disabled={!toolForm.name.trim()}>
-              Simpan Tool
+              <PlusIcon className="icon" />
+              <span>Simpan tool</span>
             </button>
           </div>
 
-          {tools.length === 0 ? (
-            <div className="empty">Belum ada tool.</div>
-          ) : (
-            tools.map((t) => (
-              <div className="list-item" key={t.id}>
-                <div>
-                  <h4>
-                    {TOOL_TYPE_LABELS[t.type]} <code>{name.toLowerCase().replace(/\s+/g, "_")}_{t.name}</code>
-                  </h4>
-                  <p>{t.description}</p>
-                  <div className="meta">
-                    procedure: {procedures.find((p) => p.id === t.procedure_id)?.name ?? "—"}
-                  </div>
-                </div>
-                <button
-                  className="danger"
-                  onClick={async () => {
-                    await api.deleteTool(t.id);
-                    await load();
-                  }}
-                >
-                  Hapus
-                </button>
+          <div className="surface-card list-panel">
+            <div className="section-heading-row">
+              <div>
+                <span className="eyebrow">Inventory</span>
+                <h3>Tool registry</h3>
               </div>
-            ))
-          )}
-        </div>
+              <div className="section-chip">
+                <GridIcon className="icon" />
+                <span>Ready for UI and MCP</span>
+              </div>
+            </div>
+
+            {tools.length === 0 ? (
+              <div className="empty-state compact-empty">
+                <ToolIcon className="icon" />
+                <div>
+                  <strong>Belum ada tool.</strong>
+                  <p>Tambahkan tool pertama untuk mulai expose capability specialist ini.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="entity-list">
+                {tools.map((tool) => (
+                  <article className="entity-card" key={tool.id}>
+                    <div className="entity-main">
+                      <div className="entity-header">
+                        <div>
+                          <h4>{tool.name}</h4>
+                          <p>{tool.description || "Tanpa deskripsi tool."}</p>
+                        </div>
+                        <span className="metric-pill">{TOOL_TYPE_LABELS[tool.type]}</span>
+                      </div>
+                      <div className="entity-meta-row">
+                        <span className="meta-pill">MCP: {specialistSlug}_{tool.name}</span>
+                        <span className="meta-pill">Procedure: {procedures.find((item) => item.id === tool.procedure_id)?.name ?? "none"}</span>
+                        <span className="meta-pill">Created: {formatDate(tool.created_at)}</span>
+                      </div>
+                    </div>
+                    <button
+                      className="danger ghost-danger"
+                      onClick={async () => {
+                        await api.deleteTool(tool.id);
+                        await load();
+                      }}
+                    >
+                      <TrashIcon className="icon" />
+                      <span>Hapus</span>
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
       )}
 
       {tab === "procedures" && (
-        <div>
-          <div className="panel">
-            <h2>➕ Procedure baru</h2>
-            <div className="field">
-              <label>Nama</label>
-              <input
-                value={procedureForm.name}
-                onChange={(e) => setProcedureForm({ ...procedureForm, name: e.target.value })}
-                placeholder="Generate Document"
-              />
+        <section className="split-section detail-split">
+          <div className="surface-card form-panel">
+            <div className="section-heading-row">
+              <div>
+                <span className="eyebrow">Blueprint</span>
+                <h3>Tambah procedure</h3>
+              </div>
+              <div className="section-chip">
+                <BookIcon className="icon" />
+                <span>Template-driven output</span>
+              </div>
             </div>
-            <div className="field">
-              <label>Deskripsi</label>
-              <input
-                value={procedureForm.description}
-                onChange={(e) => setProcedureForm({ ...procedureForm, description: e.target.value })}
-              />
+
+            <div className="field-grid">
+              <div className="field">
+                <label>Nama procedure</label>
+                <input
+                  value={procedureForm.name}
+                  onChange={(e) => setProcedureForm({ ...procedureForm, name: e.target.value })}
+                  placeholder="Generate Document"
+                />
+              </div>
+              <div className="field">
+                <label>Deskripsi</label>
+                <input value={procedureForm.description} onChange={(e) => setProcedureForm({ ...procedureForm, description: e.target.value })} />
+              </div>
+              <div className="field field-span-2">
+                <label>Template markdown</label>
+                <textarea
+                  className="mono"
+                  rows={10}
+                  value={procedureForm.template}
+                  onChange={(e) => setProcedureForm({ ...procedureForm, template: e.target.value })}
+                  placeholder={"# {Judul Dokumen}\n\n## Definisi\n...\n\n## Prosedur\n..."}
+                />
+              </div>
             </div>
-            <div className="field">
-              <label>Template struktur dokumen (markdown)</label>
-              <textarea
-                className="mono"
-                rows={8}
-                value={procedureForm.template}
-                onChange={(e) => setProcedureForm({ ...procedureForm, template: e.target.value })}
-                placeholder={"# {Judul Dokumen}\n\n## Definisi\n...\n\n## Prosedur\n..."}
-              />
-            </div>
+
             <button className="primary" onClick={createProcedure} disabled={!procedureForm.name.trim() || !procedureForm.template.trim()}>
-              Simpan Procedure
+              <PlusIcon className="icon" />
+              <span>Simpan procedure</span>
             </button>
           </div>
 
-          {procedures.length === 0 ? (
-            <div className="empty">Belum ada procedure.</div>
-          ) : (
-            procedures.map((p) => (
-              <div className="list-item" key={p.id}>
-                <div>
-                  <h4>{p.name}</h4>
-                  <p>{p.description}</p>
-                  <div className="meta">template: {p.template.length} chars</div>
-                </div>
-                <button
-                  className="danger"
-                  onClick={async () => {
-                    await api.deleteProcedure(p.id);
-                    await load();
-                  }}
-                >
-                  Hapus
-                </button>
+          <div className="surface-card list-panel">
+            <div className="section-heading-row">
+              <div>
+                <span className="eyebrow">Library</span>
+                <h3>Procedure collection</h3>
               </div>
-            ))
-          )}
-        </div>
+              <div className="section-chip">
+                <BookIcon className="icon" />
+                <span>Reusable formatting rules</span>
+              </div>
+            </div>
+
+            {procedures.length === 0 ? (
+              <div className="empty-state compact-empty">
+                <BookIcon className="icon" />
+                <div>
+                  <strong>Belum ada procedure.</strong>
+                  <p>Tambahkan struktur dokumen agar tool generation punya output contract yang konsisten.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="entity-list">
+                {procedures.map((procedure) => (
+                  <article className="entity-card" key={procedure.id}>
+                    <div className="entity-main">
+                      <div className="entity-header">
+                        <div>
+                          <h4>{procedure.name}</h4>
+                          <p>{procedure.description || "Tanpa deskripsi procedure."}</p>
+                        </div>
+                        <span className="metric-pill">{procedure.template.length} chars</span>
+                      </div>
+                      <div className="entity-meta-row">
+                        <span className="meta-pill">Created: {formatDate(procedure.created_at)}</span>
+                      </div>
+                    </div>
+                    <button
+                      className="danger ghost-danger"
+                      onClick={async () => {
+                        await api.deleteProcedure(procedure.id);
+                        await load();
+                      }}
+                    >
+                      <TrashIcon className="icon" />
+                      <span>Hapus</span>
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
       )}
 
       {tab === "knowledge" && (
-        <div>
-          <div className="panel">
-            <h2>➕ Tambah knowledge manual</h2>
-            <div className="field">
-              <label>Judul</label>
-              <input
-                value={knowledgeForm.title}
-                onChange={(e) => setKnowledgeForm({ ...knowledgeForm, title: e.target.value })}
-                placeholder="CoA Pendaftaran"
-              />
+        <section className="split-section detail-split">
+          <div className="surface-card form-panel">
+            <div className="section-heading-row">
+              <div>
+                <span className="eyebrow">Knowledge Intake</span>
+                <h3>Tambah knowledge manual</h3>
+              </div>
+              <div className="section-chip">
+                <SearchIcon className="icon" />
+                <span>RAG-ready content source</span>
+              </div>
             </div>
-            <div className="field">
-              <label>Konten</label>
-              <textarea
-                className="mono"
-                rows={4}
-                value={knowledgeForm.content}
-                onChange={(e) => setKnowledgeForm({ ...knowledgeForm, content: e.target.value })}
-              />
+
+            <div className="field-grid">
+              <div className="field">
+                <label>Judul</label>
+                <input value={knowledgeForm.title} onChange={(e) => setKnowledgeForm({ ...knowledgeForm, title: e.target.value })} placeholder="CoA Pendaftaran" />
+              </div>
+              <div className="field">
+                <label>Sumber</label>
+                <input value={knowledgeForm.source} onChange={(e) => setKnowledgeForm({ ...knowledgeForm, source: e.target.value })} placeholder="https://..." />
+              </div>
+              <div className="field field-span-2">
+                <label>Konten</label>
+                <textarea className="mono" rows={8} value={knowledgeForm.content} onChange={(e) => setKnowledgeForm({ ...knowledgeForm, content: e.target.value })} />
+              </div>
             </div>
-            <div className="field">
-              <label>Sumber (URL / origin)</label>
-              <input
-                value={knowledgeForm.source}
-                onChange={(e) => setKnowledgeForm({ ...knowledgeForm, source: e.target.value })}
-                placeholder="https://..."
-              />
-            </div>
+
             <button className="primary" onClick={createKnowledge} disabled={!knowledgeForm.title.trim() || !knowledgeForm.content.trim()}>
-              Simpan Knowledge
+              <PlusIcon className="icon" />
+              <span>Simpan knowledge</span>
             </button>
           </div>
 
-          {knowledge.length === 0 ? (
-            <div className="empty">Belum ada knowledge. Jalankan tool crawl atau tambah manual.</div>
-          ) : (
-            knowledge.map((k) => (
-              <div className="list-item" key={k.id}>
-                <div>
-                  <h4>{k.title}</h4>
-                  <p>{k.content.slice(0, 220)}{k.content.length > 220 ? "..." : ""}</p>
-                  <div className="meta">
-                    {k.source || "tanpa sumber"} · {k.created_at}
-                  </div>
-                </div>
-                <button
-                  className="danger"
-                  onClick={async () => {
-                    await api.deleteKnowledge(k.id);
-                    await load();
-                  }}
-                >
-                  Hapus
-                </button>
+          <div className="surface-card list-panel">
+            <div className="section-heading-row">
+              <div>
+                <span className="eyebrow">Stored Context</span>
+                <h3>Knowledge entries</h3>
               </div>
-            ))
-          )}
-        </div>
+              <div className="section-chip">
+                <BrainIcon className="icon" />
+                <span>Specialist-scoped retrieval</span>
+              </div>
+            </div>
+
+            {knowledge.length === 0 ? (
+              <div className="empty-state compact-empty">
+                <BrainIcon className="icon" />
+                <div>
+                  <strong>Belum ada knowledge.</strong>
+                  <p>Jalankan crawl atau tambahkan pengetahuan manual agar specialist ini punya context yang hidup.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="entity-list">
+                {knowledge.map((item) => (
+                  <article className="entity-card" key={item.id}>
+                    <div className="entity-main">
+                      <div className="entity-header">
+                        <div>
+                          <h4>{item.title}</h4>
+                          <p>{item.content.slice(0, 220)}{item.content.length > 220 ? "..." : ""}</p>
+                        </div>
+                      </div>
+                      <div className="entity-meta-row">
+                        <span className="meta-pill">Source: {item.source || "manual entry"}</span>
+                        <span className="meta-pill">Created: {formatDate(item.created_at)}</span>
+                      </div>
+                    </div>
+                    <button
+                      className="danger ghost-danger"
+                      onClick={async () => {
+                        await api.deleteKnowledge(item.id);
+                        await load();
+                      }}
+                    >
+                      <TrashIcon className="icon" />
+                      <span>Hapus</span>
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
       )}
     </div>
   );
