@@ -1,0 +1,87 @@
+import Fastify from "fastify";
+import cors from "@fastify/cors";
+import { getDb } from "./db/connection.js";
+import { seedIfEmpty } from "./db/seed.js";
+import { config } from "./config.js";
+import { OpenAiCompatibleLlmClient } from "./llm/client.js";
+import { SpecialistService } from "./services/specialist.service.js";
+import { ProcedureService } from "./services/procedure.service.js";
+import { ToolService } from "./services/tool.service.js";
+import { KnowledgeService } from "./services/knowledge.service.js";
+import { PlaygroundService } from "./services/playground.service.js";
+import { ToolExecutorRegistry } from "./engines/registry.js";
+import { CrawlExecutor } from "./engines/crawl.executor.js";
+import { GenerateDocExecutor } from "./engines/generate-doc.executor.js";
+import { KnowledgeQueryExecutor } from "./engines/knowledge-query.executor.js";
+import { PalhubMcpServer } from "./mcp/server.js";
+import { registerSpecialistRoutes } from "./routes/specialists.js";
+import { registerToolRoutes } from "./routes/tools.js";
+import { registerProcedureRoutes } from "./routes/procedures.js";
+import { registerKnowledgeRoutes } from "./routes/knowledge.js";
+import { registerPlaygroundRoutes } from "./routes/playground.js";
+
+async function main(): Promise<void> {
+  const db = getDb();
+  const seeded = seedIfEmpty(db);
+  if (seeded.specialists > 0) {
+    console.log(`🌱 Seed: ${seeded.specialists} specialist, ${seeded.procedures} procedure, ${seeded.tools} tool`);
+  }
+
+  // --- Dependencies (DI graph) ---
+  const specialistService = new SpecialistService(db);
+  const procedureService = new ProcedureService(db);
+  const toolService = new ToolService(db);
+  const knowledge = new KnowledgeService(db);
+  const llm = new OpenAiCompatibleLlmClient(config.llm);
+
+  const registry = new ToolExecutorRegistry();
+  registry.register(new CrawlExecutor());
+  registry.register(new GenerateDocExecutor());
+  registry.register(new KnowledgeQueryExecutor());
+
+  const playground = new PlaygroundService({
+    registry,
+    specialistService,
+    toolService,
+    procedureService,
+    knowledge,
+    llm,
+    dataDir: config.dataDir,
+  });
+
+  const mcp = new PalhubMcpServer({
+    registry,
+    specialistService,
+    toolService,
+    procedureService,
+    knowledge,
+    llm,
+    dataDir: config.dataDir,
+  });
+
+  // --- HTTP server ---
+  const app = Fastify({ logger: true });
+  await app.register(cors, { origin: true });
+
+  app.get("/api/health", async () => ({ ok: true, ts: new Date().toISOString() }));
+
+  registerSpecialistRoutes(app, specialistService);
+  registerToolRoutes(app, toolService);
+  registerProcedureRoutes(app, procedureService);
+  registerKnowledgeRoutes(app, knowledge);
+  registerPlaygroundRoutes(app, playground);
+
+  // MCP over Streamable HTTP
+  app.all("/mcp", async (request, reply) => {
+    reply.hijack();
+    await mcp.handle(request.raw, reply.raw, request.body);
+  });
+
+  await app.listen({ port: config.port, host: "0.0.0.0" });
+  console.log(`🚀 PalHub API + MCP: http://localhost:${config.port}`);
+}
+
+main().catch((error) => {
+  console.error("Fatal:", error);
+  process.exit(1);
+});
