@@ -1,7 +1,8 @@
+import { motion } from "framer-motion";
+import { ArrowLeft, Cable, Copy, FlaskConical, Orbit, Play, TerminalSquare, Wrench } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import { ArrowLeftIcon, BoltIcon, CopyIcon, PlayIcon, SparkIcon, TerminalIcon, ToolIcon } from "../components/Icons";
 import type { Specialist, Tool } from "../types";
 
 const TOOL_TYPE_LABELS: Record<Tool["type"], string> = {
@@ -54,73 +55,78 @@ export default function Playground() {
   };
 
   return (
-    <div className="page-stack">
-      <Link to={`/specialists/${specialistId}`} className="back-link">
-        <ArrowLeftIcon className="icon" />
+    <div className="space-y-6">
+      <Link to={`/specialists/${specialistId}`} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 transition hover:text-brand-700">
+        <ArrowLeft className="h-4 w-4" />
         <span>Kembali ke workbench</span>
       </Link>
 
-      <section className="hero-section compact-hero playground-hero">
-        <div className="hero-copy">
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
+        className="hero-shell grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_380px]"
+      >
+        <div>
           <span className="eyebrow">Execution Console</span>
-          <h2 className="hero-title">Playground {specialist ? `for ${specialist.name}` : "loading..."}</h2>
-          <p className="hero-text">
-            Uji prompt, validasi perilaku tool, dan pastikan hasilnya siap dipakai ulang dari client MCP yang lain.
+          <h2 className="mt-3 font-display text-4xl font-bold leading-none tracking-[-0.07em] text-slate-950 lg:text-[3rem]">
+            Playground {specialist ? `for ${specialist.name}` : "loading..."}
+          </h2>
+          <p className="mt-4 max-w-2xl text-[15px] leading-7 text-slate-600 lg:text-base">
+            Uji prompt, validasi perilaku tool, dan pastikan output yang keluar siap dipakai ulang dari client MCP lain.
           </p>
-          <div className="hero-actions">
-            <div className="inline-note violet-note">
-              <TerminalIcon className="icon" />
+          <div className="mt-6 flex flex-wrap gap-3">
+            <div className="subtle-note bg-violet-50 text-violet-700 border-violet-200">
+              <Cable className="h-4 w-4 text-violet-600" />
               <span>Output di sini setara dengan response yang dikirim lewat <code>/mcp</code>.</span>
             </div>
           </div>
         </div>
 
-        <div className="hero-grid hero-grid-2">
-          <div className="metric-card metric-card-violet">
-            <span className="metric-label">Available tools</span>
-            <strong>{tools.length}</strong>
-            <p>Choose one capability and run it against a realistic prompt.</p>
+        <div className="grid gap-3">
+          <div className="rounded-[24px] bg-gradient-to-br from-violet-500 to-violet-700 p-5 text-white shadow-[0_24px_50px_rgba(91,33,182,0.28)]">
+            <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-violet-100/80">Available tools</div>
+            <div className="mt-3 font-display text-5xl font-bold tracking-[-0.08em]">{tools.length}</div>
+            <p className="mt-2 text-sm leading-6 text-violet-100/80">Choose one capability and run it against a realistic prompt.</p>
           </div>
-          <div className="metric-card">
-            <span className="metric-label">Selected mode</span>
-            <strong>{selectedTool ? TOOL_TYPE_LABELS[selectedTool.type] : "-"}</strong>
-            <p>{selectedTool?.description || "Pick a tool to see its operating mode."}</p>
+          <div className="panel-surface-strong p-5">
+            <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">Selected mode</div>
+            <div className="mt-3 font-display text-4xl font-bold tracking-[-0.08em] text-slate-950">{selectedTool ? TOOL_TYPE_LABELS[selectedTool.type] : "-"}</div>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{selectedTool?.description || "Pick a tool to see its operating mode."}</p>
           </div>
         </div>
-      </section>
+      </motion.section>
 
-      {error && <div className="err-box">{error}</div>}
+      {error && <div className="rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm font-medium text-rose-700">{error}</div>}
 
-      <section className="split-section detail-split">
-        <div className="surface-card form-panel accent-violet-surface">
-          <div className="section-heading-row">
+      <div className="grid gap-6 xl:grid-cols-[440px_minmax(0,1fr)]">
+        <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }} className="panel-surface space-y-6 p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <span className="eyebrow">Prompt Composer</span>
-              <h3>Run a tool interactively</h3>
+              <h3 className="section-title mt-2">Run a tool interactively</h3>
             </div>
-            <div className="section-chip accent-violet-soft">
-              <SparkIcon className="icon" />
+            <div className="metric-chip bg-violet-50 text-violet-700 border-violet-200">
+              <FlaskConical className="h-4 w-4" />
               <span>Fast validation loop</span>
             </div>
           </div>
 
-          <div className="field-grid">
-            <div className="field field-span-2">
-              <label>Tool</label>
-              <select value={toolId} onChange={(e) => setToolId(e.target.value ? Number(e.target.value) : "")}>
+          <div className="grid gap-4">
+            <label className="grid gap-2">
+              <span className="field-label">Tool</span>
+              <select className="input-shell" value={toolId} onChange={(e) => setToolId(e.target.value ? Number(e.target.value) : "")}>
                 {tools.length === 0 && <option value="">Belum ada tool</option>}
                 {tools.map((tool) => (
-                  <option key={tool.id} value={tool.id}>
-                    {TOOL_TYPE_LABELS[tool.type]} - {tool.name}
-                  </option>
+                  <option key={tool.id} value={tool.id}>{TOOL_TYPE_LABELS[tool.type]} - {tool.name}</option>
                 ))}
               </select>
-            </div>
-            <div className="field field-span-2">
-              <label>Prompt</label>
+            </label>
+            <label className="grid gap-2">
+              <span className="field-label">Prompt</span>
               <textarea
-                rows={8}
-                className="mono"
+                rows={10}
+                className="input-shell min-h-72 font-mono text-sm"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder={
@@ -129,57 +135,63 @@ export default function Playground() {
                     : "Pilih tool terlebih dahulu"
                 }
               />
-            </div>
+            </label>
           </div>
 
-          <div className="hero-actions">
-            <button className="primary accent-violet" onClick={run} disabled={busy || !toolId || !prompt.trim()}>
-              <PlayIcon className="icon" />
+          <div className="flex flex-wrap items-center gap-3">
+            <button className="action-primary !from-violet-500 !to-violet-700 !shadow-[0_16px_30px_rgba(91,33,182,0.24)]" onClick={run} disabled={busy || !toolId || !prompt.trim()}>
+              <Play className="h-4 w-4" />
               <span>{busy ? "Menjalankan..." : "Jalankan tool"}</span>
             </button>
-            <div className="inline-note">
-              <ToolIcon className="icon" />
+            <div className="subtle-note">
+              <Wrench className="h-4 w-4 text-brand-600" />
               <span>{selectedTool ? `${selectedTool.name} siap diuji.` : "Tambahkan tool di workbench bila list masih kosong."}</span>
             </div>
           </div>
-        </div>
+        </motion.section>
 
-        <div className="surface-card list-panel result-panel-shell">
-          <div className="section-heading-row">
+        <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.09 }} className="panel-surface p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <span className="eyebrow">Output</span>
-              <h3>Execution result</h3>
+              <h3 className="section-title mt-2">Execution result</h3>
             </div>
             {result && (
-              <button className="secondary" onClick={copy}>
-                <CopyIcon className="icon" />
+              <button className="action-secondary" onClick={copy}>
+                <Copy className="h-4 w-4" />
                 <span>Copy hasil</span>
               </button>
             )}
           </div>
 
-          {result ? (
-            <div className="result-panel">
-              <div className="result-panel-head">
-                <div className="result-status">
-                  <BoltIcon className="icon" />
-                  <span>Run complete</span>
+          <div className="mt-6">
+            {result ? (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
+                    <Orbit className="h-4 w-4 text-brand-600" />
+                    <span>Run complete</span>
+                  </div>
+                  <div className="metric-chip">Tool: {selectedTool?.name ?? "-"}</div>
                 </div>
-                <div className="meta-pill">Tool: {selectedTool?.name ?? "-"}</div>
+                <motion.pre initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="overflow-auto rounded-[24px] border border-slate-800/10 bg-slate-950 p-5 font-mono text-sm leading-7 text-slate-100 shadow-inner">
+                  {result}
+                </motion.pre>
               </div>
-              <pre className="result-box">{result}</pre>
-            </div>
-          ) : (
-            <div className="empty-state compact-empty">
-              <TerminalIcon className="icon" />
-              <div>
-                <strong>Belum ada hasil.</strong>
-                <p>Jalankan tool untuk melihat payload respons yang sama dengan integrasi MCP.</p>
+            ) : (
+              <div className="rounded-[24px] border border-dashed border-slate-200 bg-white/70 p-8">
+                <div className="flex items-start gap-3">
+                  <TerminalSquare className="mt-1 h-5 w-5 text-brand-600" />
+                  <div>
+                    <div className="font-semibold text-slate-950">Belum ada hasil.</div>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">Jalankan tool untuk melihat payload respons yang sama dengan integrasi MCP.</p>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      </section>
+            )}
+          </div>
+        </motion.section>
+      </div>
     </div>
   );
 }
