@@ -144,7 +144,7 @@ export const TEMPLATES: KnowledgeTemplate[] = [
     id: "tech",
     name: "Tech / Development",
     description: "Pemrograman, arsitektur, tooling, best practices.",
-    match: ["tech", "developer", "engineer", "programmer", "it", "code", "dev", "software", "backend", "frontend"],
+    match: ["tech", "developer", "engineer", "programmer", "it", "code", "dev", "software", "backend", "frontend", "architect", "infrastructure", "architecture", "arsitektur", "cqrs", "microservice", "database", "infrastruktur", "devops"],
     sections: [
       {
         key: "summary",

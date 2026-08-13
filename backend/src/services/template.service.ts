@@ -82,20 +82,16 @@ export class KnowledgeTemplateService {
     const topic = input.topic.trim();
     if (!topic) throw new Error("topic wajib diisi");
 
-    // 1) Resolve template sementara (buat fallback specialist match kalau
-    //    specialist_id gak di-pass). Final template di langkah 3.
-    const template = input.templateId
-      ? getTemplate(input.templateId) ?? detectTemplate(input.specialistName ?? "")
-      : detectTemplate(input.specialistName ?? "");
-    if (!template) throw new Error("Template tidak ditemukan");
-
-    // 2) Resolve specialist (eksplisit dari caller; kalau gak ada, cari yang match template)
-    const specialist = this.resolveSpecialist(input.specialistId, input.specialistName, template);
+    // 1) Resolve specialist: eksplisit (id/name) → match template → detect
+    //    dari TOPIK (kata kunci topik vs nama specialist) → fallback pertama.
+    const specialist = this.resolveSpecialist(input, topic);
     if (!specialist) throw new Error("Specialist tidak ditemukan — passing specialist_id / specialist_name");
 
-    // 3) Template final: kalau user gak pilih eksplisit, auto-detect dari
-    //    nama specialist yang SUDAH di-resolve (bukan dari input mentah).
-    const finalTemplate = input.templateId ? template : detectTemplate(specialist.name);
+    // 2) Template final: eksplisit, atau auto-detect dari nama specialist
+    //    yang SUDAH di-resolve (bukan dari input mentah).
+    const finalTemplate = input.templateId
+      ? getTemplate(input.templateId) ?? detectTemplate(specialist.name)
+      : detectTemplate(specialist.name);
 
     // 4) Dedupe: kalau topik ini udah ke-cover note existing (hybrid search
     //    dapet match kuat di specialist yang sama), gak usah bikin duplikat.
@@ -180,32 +176,70 @@ export class KnowledgeTemplateService {
   // Internal helpers
   // -------------------------------------------------------------------------
 
+  /**
+   * Resolve specialist tujuan catatan. Prioritas:
+   *  1. specialist_id eksplisit
+   *  2. specialist_name eksplisit
+   *  3. template_id eksplisit → specialist yang namanya match keyword template
+   *  4. auto-detect dari TOPIK: token nama specialist yang muncul di topik
+   *  5. auto-detect dari TOPIK: keyword template yang muncul di topik
+   *     (misal "cqrs/microservice" → tech → Solution Architect)
+   *  6. fallback: specialist pertama
+   */
   private resolveSpecialist(
-    specialistId: number | null | undefined,
-    specialistName: string | undefined,
-    template: KnowledgeTemplate
+    input: GenerateKnowledgeInput,
+    topic: string
   ): { id: number; name: string } | null {
+    const all = this.deps.specialists.list();
+
     // 1) Eksplisit by id
-    if (specialistId) {
+    if (input.specialistId) {
       try {
-        const s = this.deps.specialists.get(specialistId);
+        const s = this.deps.specialists.get(input.specialistId);
         if (s) return { id: s.id, name: s.name };
       } catch {
         /* fall through */
       }
     }
-    // 2) By name
-    if (specialistName) {
-      const s = this.deps.specialists
-        .list()
-        .find((x) => x.name.toLowerCase() === specialistName.toLowerCase());
+    // 2) Eksplisit by name
+    const name = input.specialistName;
+    if (name) {
+      const s = all.find((x) => x.name.toLowerCase() === name.toLowerCase());
       if (s) return { id: s.id, name: s.name };
     }
-    // 3) Auto: specialist yang namanya match keyword template
-    const all = this.deps.specialists.list();
-    const matched = all.find((s) => template.match.some((kw) => s.name.toLowerCase().includes(kw)));
-    if (matched) return { id: matched.id, name: matched.name };
-    // 4) Fallback: specialist pertama
+    // 3) Template eksplisit → specialist yang namanya match keyword template
+    if (input.templateId) {
+      const tpl = getTemplate(input.templateId);
+      if (tpl) {
+        const s = all.find((x) => tpl.match.some((kw) => x.name.toLowerCase().includes(kw)));
+        if (s) return { id: s.id, name: s.name };
+      }
+    }
+    // 4) Auto-detect dari topik: token nama specialist (len > 3) yang muncul
+    //    di topik. Contoh: topik "event-driven architecture" → "architect"
+    //    match "Solution Architect", bukan "Finance".
+    const topicLower = topic.toLowerCase();
+    const scored = all
+      .map((s) => {
+        const nameTokens = s.name
+          .toLowerCase()
+          .split(/[^a-z0-9]+/)
+          .filter((w) => w.length > 3);
+        const score = nameTokens.filter((w) => topicLower.includes(w)).length;
+        return { s, score };
+      })
+      .sort((a, b) => b.score - a.score);
+    if (scored[0] && scored[0].score > 0) {
+      return { id: scored[0].s.id, name: scored[0].s.name };
+    }
+    // 5) Auto-detect dari topik: keyword template di topik → specialist yang
+    //    namanya match template itu. "cqrs/microservice/database" → tech.
+    const templateMatch = TEMPLATES.find((t) => t.match.some((kw) => topicLower.includes(kw)));
+    if (templateMatch) {
+      const s = all.find((x) => templateMatch.match.some((kw) => x.name.toLowerCase().includes(kw)));
+      if (s) return { id: s.id, name: s.name };
+    }
+    // 6) Fallback: specialist pertama
     return all[0] ? { id: all[0].id, name: all[0].name } : null;
   }
 
@@ -412,7 +446,7 @@ ${sourceBlock}`;
           content: `Output sebelumnya GAGAL validasi dengan error:\n${feedback}\n\nPerbaiki dan kirim ulang JSON yang valid.`,
         });
       }
-      const raw = await this.deps.llm.chat(messages, { temperature: 0.2, maxTokens: 12000 });
+      const raw = await this.deps.llm.chat(messages, { temperature: 0.2, maxTokens: 16000, json: true });
       return this.parseJson(raw, template);
     };
 
@@ -424,16 +458,39 @@ ${sourceBlock}`;
     }
   }
 
-  /** Parse JSON dari output LLM — toleran sama markdown fence & teks di sekitar. */
+  /**
+   * Parse JSON dari output LLM.
+   * - Fence ```json ... ``` cuma di-strip kalau SELURUH output dibungkus satu
+   *   fence. JANGAN pakai regex fence bebas — JSON yang berisi kode fence di
+   *   dalam nilai string (misal template tech: section "Contoh Kode") bakal
+   *   ke-motong & rusak.
+   * - Sisanya: cari JSON object TERLUAR dengan balanced brace scan, toleran
+   *   sama teks tambahan sebelum/ sesudah object.
+   */
   private parseJson(raw: string, template: KnowledgeTemplate): { title: string; sections: Record<string, string> } {
     let text = raw.trim();
-    // Strip markdown fence kalau ada (```json ... ```)
-    const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (fence) text = fence[1].trim();
+    const wrapped = text.match(/^```(?:json)?\s*([\s\S]*?)```\s*$/);
+    if (wrapped) text = wrapped[1].trim();
+
     const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start === -1 || end === -1 || end <= start) {
-      throw new Error("Output LLM bukan JSON object");
+    if (start === -1) {
+      throw new Error("Output LLM bukan JSON object (gak ada '{')");
+    }
+    let depth = 0;
+    let end = -1;
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+    if (end === -1) {
+      throw new Error("Output LLM bukan JSON object (brace gak seimbang / ke-truncate)");
     }
     const parsed = OUTPUT_SCHEMA.parse(JSON.parse(text.slice(start, end + 1)));
     // Validasi section wajib terisi — kalau kosong, retry dengan feedback

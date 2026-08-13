@@ -6,6 +6,8 @@ export interface ChatMessage {
 export interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
+  /** Force JSON output via response_format=json_object (kalau API support). */
+  json?: boolean;
 }
 
 export interface LlmClient {
@@ -62,6 +64,7 @@ export class OpenAiCompatibleLlmClient implements LlmClient {
         messages,
         temperature: opts.temperature ?? 0.3,
         max_tokens: opts.maxTokens ?? 4096,
+        ...(opts.json ? { response_format: { type: "json_object" } } : {}),
       }),
     });
 

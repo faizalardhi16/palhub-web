@@ -139,6 +139,101 @@ export function ensureSeedTools(db: Database.Database): number {
 }
 
 /**
+ * ensureStandardTools — idempotent migration: tiap specialist punya tool
+ * standar (crawl, web_search, knowledge_search, generate_doc) dengan nama
+ * & deskripsi yang konsisten. Nama legacy (architect_crawl, knowledge,
+ * document, dst) di-rename ke standar — biar MCP tool-nya rapi
+ * (`solution_architect_crawl` bukan `solution_architect_architect_crawl`)
+ * dan deskripsinya jelas, sehingga agent milih specialist yang benar.
+ */
+const LEGACY_TOOL_RENAMES: Record<string, { name: string; type: string }> = {
+  architect_crawl: { name: "crawl", type: "crawl" },
+  architect_websearch: { name: "web_search", type: "web_search" },
+  architect_search: { name: "knowledge_search", type: "knowledge_query" },
+  knowledge: { name: "knowledge_search", type: "knowledge_query" },
+  document: { name: "generate_doc", type: "generate_doc" },
+};
+
+export function ensureStandardTools(db: Database.Database): number {
+  const renameTool = db.prepare("UPDATE tools SET name = ?, type = ? WHERE id = ?");
+  const hasTool = db.prepare("SELECT id FROM tools WHERE specialist_id = ? AND name = ?");
+  const insertTool = db.prepare(
+    "INSERT INTO tools (specialist_id, name, description, type, procedure_id) VALUES (?, ?, ?, ?, NULL)"
+  );
+  const updateDesc = db.prepare("UPDATE tools SET description = ? WHERE id = ?");
+
+  let changed = 0;
+
+  // 1) Rename tool legacy → standar (untuk specialist mana pun)
+  const legacyRows = db
+    .prepare("SELECT id, specialist_id, name FROM tools WHERE name IN (?, ?, ?, ?, ?)")
+    .all(...Object.keys(LEGACY_TOOL_RENAMES)) as Array<{ id: number; specialist_id: number; name: string }>;
+  for (const row of legacyRows) {
+    const target = LEGACY_TOOL_RENAMES[row.name];
+    const clash = hasTool.get(row.specialist_id, target.name) as { id: number } | undefined;
+    if (clash) {
+      // tool standar udah ada → hapus yang legacy biar gak dobel
+      db.prepare("DELETE FROM tools WHERE id = ?").run(row.id);
+    } else {
+      renameTool.run(target.name, target.type, row.id);
+    }
+    changed++;
+  }
+
+  // 2) Pastikan tiap specialist punya 4 tool standar + deskripsi domain-aware
+  const specs = db.prepare("SELECT id, name FROM specialists ORDER BY id").all() as Array<{ id: number; name: string }>;
+  for (const spec of specs) {
+    const stds = standardToolsFor(spec.name);
+    for (const std of stds) {
+      const existing = hasTool.get(spec.id, std.name) as { id: number } | undefined;
+      if (!existing) {
+        insertTool.run(spec.id, std.name, std.description, std.type);
+        changed++;
+      }
+    }
+  }
+
+  // 3) Update deskripsi tool yang baru di-rename (biar agent tau ini punya siapa)
+  for (const row of legacyRows) {
+    const target = LEGACY_TOOL_RENAMES[row.name];
+    const spec = db.prepare("SELECT name FROM specialists WHERE id = ?").get(row.specialist_id) as { name: string };
+    const std = standardToolsFor(spec.name).find((s) => s.name === target.name);
+    if (std) {
+      const tool = db.prepare("SELECT id FROM tools WHERE specialist_id = ? AND name = ?").get(row.specialist_id, target.name) as { id: number } | undefined;
+      if (tool) updateDesc.run(std.description, tool.id);
+    }
+  }
+
+  return changed;
+}
+
+/** Tool standar per specialist dengan deskripsi yang menyebut domain-nya. */
+function standardToolsFor(specialistName: string): Array<{ name: string; type: string; description: string }> {
+  return [
+    {
+      name: "crawl",
+      type: "crawl",
+      description: `Crawl sumber / best practice terkait ${specialistName} dari web. Input cukup prompt.`,
+    },
+    {
+      name: "web_search",
+      type: "web_search",
+      description: `Cari informasi dari web (Google via DuckDuckGo/Serper) — topik ${specialistName}. Return judul, URL, snippet.`,
+    },
+    {
+      name: "knowledge_search",
+      type: "knowledge_query",
+      description: `Cari knowledge ${specialistName} yang sudah di-crawl / disimpan (fresh, bukan snapshot skill).`,
+    },
+    {
+      name: "generate_doc",
+      type: "generate_doc",
+      description: `Generate dokumen .MD sesuai procedure ${specialistName}.`,
+    },
+  ];
+}
+
+/**
  * ensureDevelopmentCycle — idempotent seed pipeline "Development Cycle".
  * Pipeline inilah yang di-export jadi skill orchestrator: prompt
  * "gunakan development cycle untuk develop aplikasi finance" di Cursor/Codex

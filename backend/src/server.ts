@@ -2,7 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { join } from "node:path";
 import { getDb } from "./db/connection.js";
-import { seedIfEmpty, ensureSeedTools, ensureDevelopmentCycle } from "./db/seed.js";
+import { seedIfEmpty, ensureSeedTools, ensureStandardTools, ensureDevelopmentCycle } from "./db/seed.js";
 import { config } from "./config.js";
 import { OpenAiCompatibleLlmClient } from "./llm/client.js";
 import { WebSearchService } from "./services/search.service.js";
@@ -38,6 +38,10 @@ async function main(): Promise<void> {
   const migratedTools = ensureSeedTools(db);
   if (migratedTools > 0) {
     console.log(`🧬 Migration: +${migratedTools} tool ditambahkan ke specialist existing`);
+  }
+  const standardTools = ensureStandardTools(db);
+  if (standardTools > 0) {
+    console.log(`🧰 Standard tools: ${standardTools} tool di-rename/ditambahkan (konvensi standar)`);
   }
   const seededPipeline = ensureDevelopmentCycle(db);
   if (seededPipeline > 0) {
