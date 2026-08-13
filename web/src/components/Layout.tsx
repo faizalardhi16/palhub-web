@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { motion } from "framer-motion";
-import { Blocks, Cable, FlaskConical, Layers3, Orbit, PanelsTopLeft } from "lucide-react";
+import { Blocks, Cable, FlaskConical, Layers3, Orbit, PanelsTopLeft, Workflow } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
 const navItems = [
@@ -9,6 +9,12 @@ const navItems = [
     label: "Specialists",
     description: "Catalog and orchestration",
     icon: Blocks,
+  },
+  {
+    to: "/pipelines",
+    label: "Pipelines",
+    description: "Agent-to-agent pipelines",
+    icon: Workflow,
   },
 ];
 

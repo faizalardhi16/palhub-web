@@ -60,6 +60,42 @@ CREATE TRIGGER IF NOT EXISTS knowledge_au AFTER UPDATE ON knowledge BEGIN
   INSERT INTO knowledge_fts(rowid, specialist_id, title, content)
   VALUES (new.id, new.specialist_id, new.title, new.content);
 END;
+
+CREATE TABLE IF NOT EXISTS pipelines (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  description TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS pipeline_stages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pipeline_id INTEGER NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  specialist_id INTEGER NOT NULL REFERENCES specialists(id),
+  name TEXT NOT NULL,
+  instruction TEXT NOT NULL DEFAULT '',
+  max_iterations INTEGER NOT NULL DEFAULT 3
+);
+
+CREATE TABLE IF NOT EXISTS pipeline_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pipeline_id INTEGER NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'running',
+  started_at TEXT NOT NULL DEFAULT (datetime('now')),
+  finished_at TEXT,
+  error TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS pipeline_run_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id INTEGER NOT NULL REFERENCES pipeline_runs(id) ON DELETE CASCADE,
+  stage_position INTEGER,
+  specialist_id INTEGER,
+  kind TEXT NOT NULL,
+  content TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
 
 let db: Database.Database | null = null;

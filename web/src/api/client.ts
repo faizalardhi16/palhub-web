@@ -1,4 +1,16 @@
-import type { Knowledge, KnowledgePage, Procedure, Specialist, Tool, ToolRunResult } from "../types";
+import type {
+  Knowledge,
+  KnowledgePage,
+  Pipeline,
+  PipelineDetail,
+  PipelineRun,
+  PipelineRunDetail,
+  PipelineStage,
+  Procedure,
+  Specialist,
+  Tool,
+  ToolRunResult,
+} from "../types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -67,4 +79,29 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ tool_id: toolId, input: { prompt } }),
     }),
+
+  // Pipelines
+  listPipelines: () => request<Pipeline[]>("/api/pipelines"),
+  createPipeline: (body: { name: string; description: string }) =>
+    request<Pipeline>("/api/pipelines", { method: "POST", body: JSON.stringify(body) }),
+  getPipeline: (id: number) => request<PipelineDetail>(`/api/pipelines/${id}`),
+  updatePipeline: (id: number, body: { name: string; description: string }) =>
+    request<Pipeline>(`/api/pipelines/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deletePipeline: (id: number) => request<{ ok: boolean }>(`/api/pipelines/${id}`, { method: "DELETE" }),
+
+  addStage: (pipelineId: number, body: { specialist_id: number; name: string; instruction: string; max_iterations?: number }) =>
+    request<PipelineStage>(`/api/pipelines/${pipelineId}/stages`, { method: "POST", body: JSON.stringify(body) }),
+  updateStage: (id: number, body: Partial<{ specialist_id: number; name: string; instruction: string; max_iterations: number }>) =>
+    request<PipelineStage>(`/api/stages/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteStage: (id: number) => request<{ ok: boolean }>(`/api/stages/${id}`, { method: "DELETE" }),
+  reorderStages: (pipelineId: number, stage_ids: number[]) =>
+    request<{ ok: boolean }>(`/api/pipelines/${pipelineId}/stages/reorder`, {
+      method: "PUT",
+      body: JSON.stringify({ stage_ids }),
+    }),
+
+  runPipeline: (pipelineId: number) =>
+    request<PipelineRunDetail>(`/api/pipelines/${pipelineId}/run`, { method: "POST" }),
+  listRuns: (pipelineId: number) => request<PipelineRun[]>(`/api/pipelines/${pipelineId}/runs`),
+  getRun: (runId: number) => request<PipelineRunDetail>(`/api/runs/${runId}`),
 };

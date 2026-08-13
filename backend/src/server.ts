@@ -11,6 +11,7 @@ import { ProcedureService } from "./services/procedure.service.js";
 import { ToolService } from "./services/tool.service.js";
 import { KnowledgeService } from "./services/knowledge.service.js";
 import { PlaygroundService } from "./services/playground.service.js";
+import { PipelineService } from "./services/pipeline.service.js";
 import { ToolExecutorRegistry } from "./engines/registry.js";
 import { CrawlExecutor } from "./engines/crawl.executor.js";
 import { GenerateDocExecutor } from "./engines/generate-doc.executor.js";
@@ -22,6 +23,7 @@ import { registerToolRoutes } from "./routes/tools.js";
 import { registerProcedureRoutes } from "./routes/procedures.js";
 import { registerKnowledgeRoutes } from "./routes/knowledge.js";
 import { registerPlaygroundRoutes } from "./routes/playground.js";
+import { registerPipelineRoutes } from "./routes/pipelines.js";
 import { registerStatic } from "./routes/static.js";
 
 async function main(): Promise<void> {
@@ -60,6 +62,8 @@ async function main(): Promise<void> {
     dataDir: config.dataDir,
   });
 
+  const pipeline = new PipelineService({ db, specialistService, knowledge, llm });
+
   const mcp = new PalhubMcpServer({
     registry,
     specialistService,
@@ -81,6 +85,7 @@ async function main(): Promise<void> {
   registerProcedureRoutes(app, procedureService);
   registerKnowledgeRoutes(app, knowledge);
   registerPlaygroundRoutes(app, playground);
+  registerPipelineRoutes(app, pipeline);
 
   // Static frontend (web/dist) — UI + API + MCP satu origin
   registerStatic(app, join(process.cwd(), "../web/dist"));

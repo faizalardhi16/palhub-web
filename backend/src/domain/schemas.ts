@@ -42,3 +42,28 @@ export const playgroundSchema = z.object({
     })
     .default({ prompt: "" }),
 });
+
+export const pipelineCreateSchema = z.object({
+  name: z.string().min(1, "Nama pipeline wajib diisi").max(120),
+  description: z.string().max(5000).default(""),
+});
+
+export const pipelineUpdateSchema = pipelineCreateSchema;
+
+export const pipelineStageCreateSchema = z.object({
+  specialist_id: z.number().int().positive(),
+  name: z.string().min(1, "Nama stage wajib diisi").max(120),
+  instruction: z.string().max(50_000).default(""),
+  max_iterations: z.number().int().min(1).max(10).default(3),
+});
+
+export const pipelineStageUpdateSchema = z.object({
+  specialist_id: z.number().int().positive().optional(),
+  name: z.string().min(1).max(120).optional(),
+  instruction: z.string().max(50_000).optional(),
+  max_iterations: z.number().int().min(1).max(10).optional(),
+});
+
+export const pipelineStageReorderSchema = z.object({
+  stage_ids: z.array(z.number().int().positive()).min(2),
+});
