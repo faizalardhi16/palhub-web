@@ -11,11 +11,17 @@ export interface SearchConfig {
   apiKey: string;
 }
 
+export interface EmbeddingConfig {
+  enabled: boolean;
+  model: string;
+}
+
 export interface AppConfig {
   port: number;
   dataDir: string;
   llm: LlmConfig;
   search: SearchConfig;
+  embedding: EmbeddingConfig;
 }
 
 export const config: AppConfig = {
@@ -29,5 +35,10 @@ export const config: AppConfig = {
   search: {
     provider: (process.env.SEARCH_PROVIDER as SearchConfig["provider"]) ?? "duckduckgo",
     apiKey: process.env.SEARCH_API_KEY ?? "",
+  },
+  embedding: {
+    enabled: process.env.EMBEDDING_ENABLED !== "false",
+    model:
+      process.env.EMBEDDING_MODEL ?? "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
   },
 };

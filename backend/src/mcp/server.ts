@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { PlaygroundDeps } from "../services/playground.service.js";
 import type { PipelineService } from "../services/pipeline.service.js";
 import type { SkillExportService } from "../services/skill-export.service.js";
+import type { EmbeddingService } from "../services/embedding.service.js";
 import { deriveTags } from "../services/skill-export.service.js";
 import { slugify } from "../util.js";
 
@@ -17,6 +18,7 @@ interface McpSession {
 export interface McpDeps extends PlaygroundDeps {
   pipeline: PipelineService;
   skillExport?: SkillExportService;
+  embedding?: EmbeddingService;
 }
 
 /**
@@ -208,13 +210,13 @@ export class PalhubMcpServer {
       }
     );
 
-    // knowledge_search — RAG live ke knowledge store
+    // knowledge_search — RAG live ke knowledge store (hybrid: keyword + semantic)
     server.registerTool(
       "knowledge_search",
       {
-        title: "Search knowledge (live RAG)",
+        title: "Search knowledge (live RAG, hybrid)",
         description:
-          "Cari knowledge yang sudah di-crawl / disimpan di PalHub (fresh, bukan snapshot skill). Input: query + optional specialist_id / limit.",
+          "Cari knowledge yang sudah di-crawl / disimpan di PalHub (fresh, bukan snapshot skill). Default hybrid: keyword (BM25) + semantic (embedding lokal). Input: query + optional specialist_id / limit / mode.",
         inputSchema: {
           query: z.string().describe("Pertanyaan / keyword yang dicari"),
           specialist_id: z
@@ -224,9 +226,42 @@ export class PalhubMcpServer {
             .optional()
             .describe("Batasi ke specialist tertentu (opsional)"),
           limit: z.number().int().min(1).max(20).optional().describe("Maks hasil (default 5)"),
+          mode: z
+            .enum(["hybrid", "keyword", "semantic"])
+            .optional()
+            .describe("hybrid (default) = keyword + semantic; keyword = FTS5 saja; semantic = embedding saja"),
         },
       },
-      async ({ query, specialist_id, limit }) => {
+      async ({ query, specialist_id, limit, mode }) => {
+        const embedding = this.deps.embedding;
+        if (embedding && embedding.enabled) {
+          try {
+            const results = await embedding.search(query, {
+              specialistId: specialist_id ?? null,
+              limit: limit ?? 5,
+              mode: mode ?? "hybrid",
+            });
+            if (results.length === 0) {
+              return { content: [{ type: "text", text: "Tidak ada knowledge yang cocok." }] };
+            }
+            const lines = results.map((k, i) => {
+              const spec = this.deps.specialistService.get(k.specialist_id).name;
+              return `### ${i + 1}. ${k.title} (${spec}) [${k.method} ${(k.score * 100).toFixed(0)}%]\nSumber: ${k.source || "unknown"} | ${k.created_at || ""}\n\n${k.content.slice(0, 1200)}`;
+            });
+            return { content: [{ type: "text", text: lines.join("\n\n---\n\n") }] };
+          } catch (error) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `Semantic search error: ${(error as Error).message} — coba mode=keyword.`,
+                },
+              ],
+            };
+          }
+        }
+
+        // Fallback: keyword-only (tanpa embedding service)
         const knowledge = this.deps.knowledge;
         const results = specialist_id
           ? knowledge.search(specialist_id, query, limit ?? 5)

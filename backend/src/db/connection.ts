@@ -61,6 +61,13 @@ CREATE TRIGGER IF NOT EXISTS knowledge_au AFTER UPDATE ON knowledge BEGIN
   VALUES (new.id, new.specialist_id, new.title, new.content);
 END;
 
+CREATE TABLE IF NOT EXISTS knowledge_embeddings (
+  knowledge_id INTEGER PRIMARY KEY REFERENCES knowledge(id) ON DELETE CASCADE,
+  model TEXT NOT NULL,
+  vector TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS pipelines (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE,

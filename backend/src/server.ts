@@ -10,6 +10,7 @@ import { SpecialistService } from "./services/specialist.service.js";
 import { ProcedureService } from "./services/procedure.service.js";
 import { ToolService } from "./services/tool.service.js";
 import { KnowledgeService } from "./services/knowledge.service.js";
+import { EmbeddingService } from "./services/embedding.service.js";
 import { PlaygroundService } from "./services/playground.service.js";
 import { PipelineService } from "./services/pipeline.service.js";
 import { SkillExportService } from "./services/skill-export.service.js";
@@ -47,6 +48,7 @@ async function main(): Promise<void> {
   const procedureService = new ProcedureService(db);
   const toolService = new ToolService(db);
   const knowledge = new KnowledgeService(db);
+  const embedding = new EmbeddingService(db, knowledge, specialistService);
   const llm = new OpenAiCompatibleLlmClient(config.llm);
   const search = new WebSearchService(config.search.provider, config.search.apiKey);
   console.log(`🔍 Web search provider: ${search.active}`);
@@ -76,6 +78,7 @@ async function main(): Promise<void> {
     toolService,
     procedureService,
     knowledge,
+    embedding,
     llm,
     dataDir: config.dataDir,
     pipeline,
@@ -106,6 +109,12 @@ async function main(): Promise<void> {
 
   await app.listen({ port: config.port, host: "0.0.0.0" });
   console.log(`🚀 PalHub API + MCP: http://localhost:${config.port}`);
+
+  // Backfill embedding di background (gak ngeblok startup — model ~120MB
+  // di-download & load pertama kali). Kalau gagal, search tetap jalan keyword.
+  if (config.embedding.enabled) {
+    void embedding.ensureBackfill();
+  }
 }
 
 main().catch((error) => {
