@@ -9,3 +9,5 @@ dist/
 # test scripts
 backend/mcp-*.mjs
 backend/mcp-call-curl.sh
+backend/data/palhub.db-shm
+backend/data/palhub.db-wal
