@@ -33,13 +33,13 @@ export function renderFrontmatter(meta: NoteMeta, tags: string[], summary: strin
   return lines.join("\n");
 }
 
-/** Section "## Catatan Terkait" dengan wikilink [[k{id}-{slug}|judul]]. */
+/** Section "## Related Notes" dengan wikilink [[k{id}-{slug}|judul]]. */
 export function renderRelatedSection(related: RelatedNote[]): string {
   if (related.length === 0) return "";
   const links = related
     .map((r) => `- [[k${r.id}-${slugify(r.title).slice(0, 48)}|${r.title}]]`)
     .join("\n");
-  return `\n\n## Catatan Terkait\n\n${links}`;
+  return `\n\n## Related Notes\n\n${links}`;
 }
 
 /** Catatan lengkap: frontmatter + body + related. */

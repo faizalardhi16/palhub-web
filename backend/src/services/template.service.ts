@@ -427,8 +427,9 @@ KEY JSON sections yang TERSEDIA (pilih SEMUA key yang required, plus opsional ka
 ${sectionSpec}
 
 ATURAN:
-- Tulis dalam Bahasa Indonesia yang profesional, kecuali istilah teknis.
-- Fakta harus dari sumber, JANGAN mengarang angka/regulasi. Kalau sumber tidak menyebut, tulis "tidak disebutkan dalam sumber".
+- Tulis SELURUH isi catatan dalam Bahasa Inggris profesional (English), walaupun topik/prompt atau sumbernya berbahasa Indonesia/bahasa lain. Nama proper & istilah teknis tetap seperti aslinya.
+- Judul juga dalam Bahasa Inggris.
+- Fakta harus dari sumber, JANGAN mengarang angka/regulasi. Kalau sumber tidak menyebut, tulis "not mentioned in the sources".
 - Section yang wajib TIDAK BOLEH kosong.
 - Gunakan bullet (-) untuk daftar, dan format angka/tarif persis seperti di sumber.`;
 
@@ -525,7 +526,7 @@ ${sourceBlock}`;
       if (!content) continue;
       body.push(`## ${section.heading}`, "", content, "");
     }
-    body.push("## Referensi", "", sourceList, "");
+    body.push("## References", "", sourceList, "");
     const bodyText = body.join("\n").trim();
 
     const fm = renderFrontmatter(

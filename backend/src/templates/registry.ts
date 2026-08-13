@@ -5,6 +5,10 @@
  * Template di sini = kerangka catatan yang diisi AI dari hasil crawl,
  * jadi struktur catatannya memang dirancang buat AI baca & pakai.
  * Finance beda sama Legal beda sama Tech — sections-nya beda.
+ *
+ * NOTE: Semua dokumen knowledge di-generate dalam BAHASA INGGRIS
+ * (headings & guidance di sini English biar LLM output konsisten),
+ * walaupun user nulis prompt / sumbernya bahasa Indonesia.
  */
 
 export interface TemplateSection {
@@ -30,56 +34,56 @@ export const TEMPLATES: KnowledgeTemplate[] = [
   {
     id: "finance",
     name: "Finance",
-    description: "Pajak, akuntansi, regulasi keuangan, perpajakan Indonesia.",
+    description: "Tax, accounting, financial regulation, Indonesian taxation.",
     match: ["finance", "keuangan", "akuntan", "akuntansi", "pajak", "tax", "accounting", "finansial"],
     sections: [
       {
         key: "summary",
-        heading: "Ringkasan",
+        heading: "Summary",
         guidance:
-          "2-4 kalimat ringkas: topik apa, kenapa penting, poin paling esensial. Tulis seperti ringkasan eksekutif.",
+          "2-4 concise sentences: what the topic is, why it matters, and the most essential points. Write it like an executive summary.",
         required: true,
       },
       {
         key: "regulations",
-        heading: "Regulasi & Dasar Hukum",
+        heading: "Regulations & Legal Basis",
         guidance:
-          "Daftar regulasi yang relevan: nama lengkap (UU/PMK/PP/PER-...), nomor & tahun, dan satu baris isi pokoknya. Contoh: 'UU No. 7/2021 (HPP) — perubahan tarif PPh'. Kalau tidak ada regulasi spesifik, tulis ketentuan umum yang berlaku.",
+          "List relevant regulations: full name (Law/PP/PMK/PER-...), number & year, and one line about its core content. Example: 'Law No. 7/2021 (HPP) — changes to income tax rates'. If no specific regulation exists, state the general provisions that apply.",
         required: true,
       },
       {
         key: "rates_formulas",
-        heading: "Tarif, Formula & Ketentuan",
+        heading: "Rates, Formulas & Provisions",
         guidance:
-          "Angka tarif, rumus perhitungan, batasan (threshold), dan ketentuan teknis. Sertakan angka persis dari sumber. Kalau ada tabel tarif, tulis dalam bentuk poin/bullet.",
+          "Rates, calculation formulas, thresholds, and technical provisions. Include exact figures from the sources. If there is a rate table, write it as bullet points.",
         required: true,
       },
       {
         key: "examples",
-        heading: "Contoh Kasus / Perhitungan",
+        heading: "Examples / Calculations",
         guidance:
-          "Minimal 1 contoh perhitungan konkret dengan angka (ilustrasi). Tunjukkan langkah demi langkah cara menghitungnya.",
+          "At least 1 concrete calculation example with numbers (illustrative). Show the step-by-step calculation.",
         required: true,
       },
       {
         key: "obligations",
-        heading: "Kewajiban & Batas Waktu",
+        heading: "Obligations & Deadlines",
         guidance:
-          "Kewajiban wajib pajak/entitas terkait topik ini: apa yang harus dilakukan, kapan (batas waktu), ke mana (instansi), dan sanksi kalau telat.",
+          "Obligations of the taxpayer/entity related to this topic: what must be done, when (deadline), where (institution), and penalties for being late.",
         required: false,
       },
       {
         key: "pitfalls",
-        heading: "Kesalahan Umum / Pitfalls",
+        heading: "Common Mistakes / Pitfalls",
         guidance:
-          "Kesalahan yang sering terjadi (misinterpretasi, salah hitung, telat lapor) dan cara menghindarinya.",
+          "Frequent mistakes (misinterpretation, miscalculation, late filing) and how to avoid them.",
         required: false,
       },
       {
         key: "glossary",
-        heading: "Glosarium",
+        heading: "Glossary",
         guidance:
-          "5-10 istilah kunci + definisi singkat (1 baris per istilah), format: 'Istilah: definisi'. Fokus istilah yang sering bikin bingung.",
+          "5-10 key terms + short definition (1 line each), format: 'Term: definition'. Focus on terms that often cause confusion.",
         required: false,
       },
     ],
@@ -87,55 +91,55 @@ export const TEMPLATES: KnowledgeTemplate[] = [
   {
     id: "legal",
     name: "Legal",
-    description: "Hukum, regulasi, kontrak, kepatuhan.",
+    description: "Law, regulation, contracts, compliance.",
     match: ["legal", "hukum", "lawyer", "pengacara", "advokat", "kontrak", "compliance"],
     sections: [
       {
         key: "summary",
-        heading: "Ringkasan",
+        heading: "Summary",
         guidance:
-          "2-4 kalimat ringkas: topik, dasar hukum utama, dan implikasi praktisnya.",
+          "2-4 concise sentences: the topic, the main legal basis, and its practical implications.",
         required: true,
       },
       {
         key: "legal_basis",
-        heading: "Dasar Hukum",
+        heading: "Legal Basis",
         guidance:
-          "Peraturan perundang-undangan yang relevan: nama lengkap, nomor & tahun, pasal yang terkait, dan isi pokok pasal tersebut.",
+          "Relevant laws/regulations: full name, number & year, the relevant article, and the core content of that article.",
         required: true,
       },
       {
         key: "parties",
-        heading: "Pihak & Kewajiban",
+        heading: "Parties & Obligations",
         guidance:
-          "Pihak-pihak yang terlibat (subjek hukum), hak & kewajiban masing-masing, dan konsekuensi jika tidak dipenuhi.",
+          "The parties involved (legal subjects), each party's rights & obligations, and the consequences if not fulfilled.",
         required: true,
       },
       {
         key: "procedure",
-        heading: "Prosedur / Alur",
+        heading: "Procedure / Flow",
         guidance:
-          "Langkah-langkah prosedural (pendaftaran, pengajuan, pelaporan, penyelesaian sengketa) secara urut.",
+          "Step-by-step procedural steps (registration, application, reporting, dispute resolution) in order.",
         required: false,
       },
       {
         key: "sanctions",
-        heading: "Sanksi & Konsekuensi",
+        heading: "Sanctions & Consequences",
         guidance:
-          "Sanksi administratif/pidana/perdata atas pelanggaran, besaran denda jika ada, dan contoh kasus penegakan.",
+          "Administrative/criminal/civil sanctions for violations, fine amounts if any, and enforcement case examples.",
         required: false,
       },
       {
         key: "examples",
-        heading: "Contoh Kasus",
+        heading: "Case Examples",
         guidance:
-          "Contoh penerapan hukum ini di kasus nyata (boleh ilustrasi) dan bagaimana hukum diterapkan.",
+          "Examples of this law applied in real cases (illustrative allowed) and how the law is applied.",
         required: false,
       },
       {
         key: "faq",
-        heading: "Pertanyaan Umum",
-        guidance: "3-5 pertanyaan yang paling sering muncul + jawaban singkat, format: 'Q: ... / A: ...'.",
+        heading: "FAQ",
+        guidance: "3-5 most common questions + short answers, format: 'Q: ... / A: ...'.",
         required: false,
       },
     ],
@@ -143,48 +147,48 @@ export const TEMPLATES: KnowledgeTemplate[] = [
   {
     id: "tech",
     name: "Tech / Development",
-    description: "Pemrograman, arsitektur, tooling, best practices.",
+    description: "Programming, architecture, tooling, best practices.",
     match: ["tech", "developer", "engineer", "programmer", "it", "code", "dev", "software", "backend", "frontend", "architect", "infrastructure", "architecture", "arsitektur", "cqrs", "microservice", "database", "infrastruktur", "devops"],
     sections: [
       {
         key: "summary",
-        heading: "Ringkasan",
+        heading: "Summary",
         guidance:
-          "2-4 kalimat: teknologi/konsep apa, dipakai buat apa, kenapa relevan.",
+          "2-4 sentences: what technology/concept this is, what it is used for, and why it matters.",
         required: true,
       },
       {
         key: "concepts",
-        heading: "Konsep & Arsitektur",
+        heading: "Concepts & Architecture",
         guidance:
-          "Konsep inti, cara kerja, terminologi penting, dan (kalau relevan) gambaran arsitektur/komponen.",
+          "Core concepts, how it works, important terminology, and (if relevant) an architecture/component overview.",
         required: true,
       },
       {
         key: "syntax_api",
-        heading: "Sintaks / API / Konfigurasi",
+        heading: "Syntax / API / Configuration",
         guidance:
-          "Sintaks penting, signature API, opsi konfigurasi, dan nilai default. Format kode dalam code block.",
+          "Important syntax, API signatures, configuration options, and default values. Put code in code blocks.",
         required: true,
       },
       {
         key: "examples",
-        heading: "Contoh Kode",
+        heading: "Code Examples",
         guidance:
-          "Contoh kode minimal yang bisa langsung dipakai (copy-paste), lengkap dengan penjelasan singkat.",
+          "Minimal copy-paste-ready code examples, with a short explanation for each.",
         required: true,
       },
       {
         key: "pitfalls",
         heading: "Pitfalls / Gotchas",
         guidance:
-          "Jebakan umum, error yang sering muncul, limitasi, dan cara mengatasinya.",
+          "Common traps, frequent errors, limitations, and how to work around them.",
         required: false,
       },
       {
         key: "references",
-        heading: "Referensi Lanjutan",
-        guidance: "Dokumentasi resmi, artikel, atau repo yang bagus buat didalami lebih lanjut.",
+        heading: "Further References",
+        guidance: "Official docs, articles, or repos worth exploring further.",
         required: false,
       },
     ],
@@ -192,48 +196,48 @@ export const TEMPLATES: KnowledgeTemplate[] = [
   {
     id: "business",
     name: "Business / Analysis",
-    description: "Analisis bisnis, market, strategi, data.",
+    description: "Business analysis, market, strategy, data.",
     match: ["business", "analyst", "bisnis", "startup", "marketing", "strategy", "manajemen"],
     sections: [
       {
         key: "summary",
-        heading: "Ringkasan",
+        heading: "Summary",
         guidance:
-          "2-4 kalimat: konteks, insight utama, dan rekomendasi singkat.",
+          "2-4 concise sentences: context, key insight, and a short recommendation.",
         required: true,
       },
       {
         key: "context",
-        heading: "Konteks & Latar Belakang",
+        heading: "Context & Background",
         guidance:
-          "Latar belakang topik: kondisi saat ini, kenapa penting, tren yang relevan.",
+          "Background of the topic: current situation, why it matters, relevant trends.",
         required: true,
       },
       {
         key: "key_points",
-        heading: "Poin-Poin Kunci",
+        heading: "Key Points",
         guidance:
-          "Fakta & temuan utama dari sumber, dalam bentuk poin yang padat dan spesifik (sertakan angka jika ada).",
+          "Main facts & findings from the sources, as dense, specific bullet points (include numbers when available).",
         required: true,
       },
       {
         key: "data",
-        heading: "Data & Fakta",
+        heading: "Data & Facts",
         guidance:
-          "Angka, statistik, kuota, atau data pendukung lain yang bisa dikutip. Sebutkan sumbernya.",
+          "Figures, statistics, quotas, or supporting data that can be cited. Mention the source.",
         required: false,
       },
       {
         key: "implications",
-        heading: "Implikasi / Rekomendasi",
+        heading: "Implications / Recommendations",
         guidance:
-          "Apa artinya buat pengambilan keputusan, plus rekomendasi tindakan yang masuk akal.",
+          "What this means for decision-making, plus reasonable recommended actions.",
         required: false,
       },
       {
         key: "risks",
-        heading: "Risiko & Pertimbangan",
-        guidance: "Risiko, asumsi, dan hal yang perlu dipertimbangkan sebelum bertindak.",
+        heading: "Risks & Considerations",
+        guidance: "Risks, assumptions, and things to consider before acting.",
         required: false,
       },
     ],
@@ -241,37 +245,37 @@ export const TEMPLATES: KnowledgeTemplate[] = [
   {
     id: "generic",
     name: "Generic",
-    description: "Topik umum — fallback kalau domain tidak terdeteksi.",
+    description: "General topic — fallback when no domain is detected.",
     match: [],
     sections: [
       {
         key: "summary",
-        heading: "Ringkasan",
-        guidance: "2-4 kalimat ringkas: topik dan poin paling penting.",
+        heading: "Summary",
+        guidance: "2-4 concise sentences: the topic and the most important points.",
         required: true,
       },
       {
         key: "key_points",
-        heading: "Poin-Poin Utama",
-        guidance: "Fakta & poin penting dari sumber, dalam poin yang padat.",
+        heading: "Key Points",
+        guidance: "Key facts & points from the sources, as dense bullet points.",
         required: true,
       },
       {
         key: "details",
-        heading: "Detail & Penjelasan",
-        guidance: "Penjelasan lebih dalam: proses, mekanisme, ketentuan, atau konteks.",
+        heading: "Details & Explanation",
+        guidance: "Deeper explanation: processes, mechanisms, provisions, or context.",
         required: true,
       },
       {
         key: "examples",
-        heading: "Contoh",
-        guidance: "Contoh konkret atau studi kasus yang memperjelas topik.",
+        heading: "Examples",
+        guidance: "Concrete examples or case studies that clarify the topic.",
         required: false,
       },
       {
         key: "references",
-        heading: "Referensi",
-        guidance: "Daftar sumber yang relevan buat didalami.",
+        heading: "References",
+        guidance: "List of relevant sources to explore further.",
         required: false,
       },
     ],
