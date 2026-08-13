@@ -18,11 +18,14 @@ export class OpenAiCompatibleLlmClient implements LlmClient {
   ) {}
 
   async chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<string> {
-    // Retry 3x — DeepSeek peak hours sering balikin empty content / 5xx transient
+    // Retry 5x — DeepSeek peak hours sering balikin empty content / 5xx
+    // transient. Backoff exponensial: 2, 8, 18, 32s (≈60s total extra).
     let lastError: Error | null = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    const attempts = 5;
+    for (let attempt = 0; attempt < attempts; attempt++) {
       if (attempt > 0) {
-        await new Promise((r) => setTimeout(r, 1500 * attempt));
+        const delay = 2000 * attempt * attempt;
+        await new Promise((r) => setTimeout(r, delay));
       }
       try {
         const content = await this.chatOnce(messages, opts);
