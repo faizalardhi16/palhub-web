@@ -14,10 +14,15 @@ import type {
 } from "../types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
+  // Hanya set Content-Type json KALAU ada body. Fastify nolak (400
+  // FST_ERR_CTP_EMPTY_JSON_BODY) kalau content-type json dikirim tanpa body —
+  // mis. POST /api/pipelines/:id/run yang memang tanpa payload.
+  const hasBody = init?.body != null;
+  const headers: Record<string, string> = {
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  if (hasBody) headers["Content-Type"] = "application/json";
+  const res = await fetch(path, { ...init, headers });
   if (!res.ok) {
     const body = await res.text();
     let message = body;
