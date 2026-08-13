@@ -1,9 +1,10 @@
 import { motion } from "framer-motion";
-import { Blocks, Cable, ChevronRight, FileText, FlaskConical, Layers3, Orbit, Plus, Wrench } from "lucide-react";
+import { Blocks, Cable, ChevronRight, FileText, FlaskConical, Layers3, Orbit, Plus, Trash2, Wrench } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
+import ConfirmDialog from "../components/ConfirmDialog";
 import type { Specialist } from "../types";
 
 function initials(name: string) {
@@ -35,6 +36,8 @@ export default function Specialists() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Specialist | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const load = async () => {
     try {
@@ -63,6 +66,21 @@ export default function Specialists() {
       setError((e as Error).message);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    try {
+      await api.deleteSpecialist(deleteTarget.id);
+      setDeleteTarget(null);
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+      setDeleteTarget(null);
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -246,10 +264,18 @@ export default function Specialists() {
                   <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-brand-50 font-display text-lg font-bold tracking-[0.06em] text-brand-700 ring-1 ring-brand-100">
                     {initials(specialist.name)}
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <h4 className="font-display text-xl font-bold tracking-[-0.04em] text-slate-950">{specialist.name}</h4>
                     <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">{specialist.description || "Tanpa deskripsi persona."}</p>
                   </div>
+                  <button
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+                    onClick={() => setDeleteTarget(specialist)}
+                    aria-label={`Hapus ${specialist.name}`}
+                    title="Hapus specialist"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -282,6 +308,19 @@ export default function Specialists() {
           </motion.div>
         )}
       </motion.section>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Hapus specialist?"
+        message={
+          deleteTarget
+            ? `"${deleteTarget.name}" beserta ${deleteTarget.tool_count} tools, ${deleteTarget.procedure_count} procedures, dan ${deleteTarget.knowledge_count} knowledge akan dihapus permanen.`
+            : ""
+        }
+        busy={deleteBusy}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

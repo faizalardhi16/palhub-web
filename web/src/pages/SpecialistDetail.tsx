@@ -18,6 +18,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
+import ConfirmDialog from "../components/ConfirmDialog";
 import type { Knowledge, KnowledgePage, Procedure, Tool } from "../types";
 
 type Tab = "tools" | "procedures" | "knowledge";
@@ -86,6 +87,10 @@ export default function SpecialistDetail() {
   const [procedureForm, setProcedureForm] = useState(EMPTY_PROCEDURE);
   const [knowledgeForm, setKnowledgeForm] = useState(EMPTY_KNOWLEDGE);
   const [error, setError] = useState("");
+  const [deleteSpecOpen, setDeleteSpecOpen] = useState(false);
+  const [deleteSpecBusy, setDeleteSpecBusy] = useState(false);
+  const [deleteToolTarget, setDeleteToolTarget] = useState<Tool | null>(null);
+  const [deleteToolBusy, setDeleteToolBusy] = useState(false);
 
   const KNOWLEDGE_PAGE_SIZE = 6;
 
@@ -174,6 +179,33 @@ export default function SpecialistDetail() {
     }
   };
 
+  const deleteSpecialist = async () => {
+    setDeleteSpecBusy(true);
+    try {
+      await api.deleteSpecialist(specialistId);
+      window.location.href = "/";
+    } catch (e) {
+      setError((e as Error).message);
+      setDeleteSpecOpen(false);
+      setDeleteSpecBusy(false);
+    }
+  };
+
+  const confirmDeleteTool = async () => {
+    if (!deleteToolTarget) return;
+    setDeleteToolBusy(true);
+    try {
+      await api.deleteTool(deleteToolTarget.id);
+      setDeleteToolTarget(null);
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+      setDeleteToolTarget(null);
+    } finally {
+      setDeleteToolBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Link to="/" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 transition hover:text-brand-700">
@@ -200,15 +232,7 @@ export default function SpecialistDetail() {
               <FlaskConical className="h-4 w-4" />
               <span>Buka Playground</span>
             </Link>
-            <button
-              className="action-danger"
-              onClick={async () => {
-                if (window.confirm(`Hapus specialist \"${name}\" beserta semua tools, procedures, dan knowledge?`)) {
-                  await api.deleteSpecialist(specialistId);
-                  window.location.href = "/";
-                }
-              }}
-            >
+            <button className="action-danger" onClick={() => setDeleteSpecOpen(true)}>
               <Trash2 className="h-4 w-4" />
               <span>Hapus specialist</span>
             </button>
@@ -327,7 +351,7 @@ export default function SpecialistDetail() {
                           <span className="metric-chip">Created: {formatDate(tool.created_at)}</span>
                         </div>
                       </div>
-                      <button className="action-danger" onClick={async () => { await api.deleteTool(tool.id); await load(); }}>
+                      <button className="action-danger" onClick={() => setDeleteToolTarget(tool)}>
                         <Trash2 className="h-4 w-4" />
                         <span>Hapus</span>
                       </button>
@@ -570,6 +594,28 @@ export default function SpecialistDetail() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ConfirmDialog
+        open={deleteSpecOpen}
+        title="Hapus specialist?"
+        message={`"${name}" beserta semua tools, procedures, dan knowledge akan dihapus permanen.`}
+        busy={deleteSpecBusy}
+        onConfirm={deleteSpecialist}
+        onCancel={() => setDeleteSpecOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={deleteToolTarget !== null}
+        title="Hapus tool?"
+        message={
+          deleteToolTarget
+            ? `"${deleteToolTarget.name}" akan dihapus permanen dari specialist ini.`
+            : ""
+        }
+        busy={deleteToolBusy}
+        onConfirm={confirmDeleteTool}
+        onCancel={() => setDeleteToolTarget(null)}
+      />
     </div>
   );
 }
