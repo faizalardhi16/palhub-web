@@ -148,7 +148,7 @@ export const TEMPLATES: KnowledgeTemplate[] = [
     id: "tech",
     name: "Tech / Development",
     description: "Programming, architecture, tooling, best practices.",
-    match: ["tech", "developer", "engineer", "programmer", "it", "code", "dev", "software", "backend", "frontend", "architect", "infrastructure", "architecture", "arsitektur", "cqrs", "microservice", "database", "infrastruktur", "devops"],
+    match: ["tech", "developer", "engineer", "programmer", "it specialist", "it support", "it manager", "information technology", "code", "dev", "software", "backend", "frontend", "database", "infrastructure", "infrastruktur", "devops"],
     sections: [
       {
         key: "summary",
@@ -238,6 +238,174 @@ export const TEMPLATES: KnowledgeTemplate[] = [
         key: "risks",
         heading: "Risks & Considerations",
         guidance: "Risks, assumptions, and things to consider before acting.",
+        required: false,
+      },
+    ],
+  },
+  {
+    id: "ui_design",
+    name: "UI / Design",
+    description: "Web UI design analysis: tokens, typography, layout, components, interactions.",
+    match: [
+      "ui specialist",
+      "ui/ux",
+      "ui design",
+      "ui designer",
+      "ux",
+      "designer",
+      "design system",
+      "interface",
+      "figma",
+      "landing page",
+      "web design",
+      "visual design",
+    ],
+    sections: [
+      {
+        key: "summary",
+        heading: "Summary",
+        guidance:
+          "2-4 concise sentences: what this site/design system is, its overall visual character, and why it stands out.",
+        required: true,
+      },
+      {
+        key: "design_tokens",
+        heading: "Design Tokens & Color Palette",
+        guidance:
+          "Concrete palette details: exact hex codes when available, primary/secondary/accent colors, background & surface colors, text colors, border radius, shadow, spacing rhythm. Be specific — this is what makes the analysis reusable.",
+        required: true,
+      },
+      {
+        key: "typography",
+        heading: "Typography",
+        guidance:
+          "Font stack (family names), type scale (sizes/weights), heading vs body treatment, letter-spacing / line-height character, any distinctive type choices.",
+        required: true,
+      },
+      {
+        key: "layout",
+        heading: "Layout & Section Structure",
+        guidance:
+          "Page flow: hero, features, product/dashboard preview, integrations, pricing, testimonials, footer. Note grid patterns, asymmetry, whitespace usage, sticky elements.",
+        required: true,
+      },
+      {
+        key: "components",
+        heading: "Component Patterns",
+        guidance:
+          "Navigation style, CTA treatment (shape, color, hover), cards, buttons, forms, dropdowns/menus. Describe style & behavior, not generic fluff.",
+        required: false,
+      },
+      {
+        key: "interactions",
+        heading: "Interaction & Motion",
+        guidance:
+          "Hover states, transitions, micro-interactions, scroll behavior, loading states, animation feel (fast/snappy vs slow/soft).",
+        required: false,
+      },
+      {
+        key: "imagery",
+        heading: "Imagery & Illustration",
+        guidance:
+          "Photo vs illustration vs abstract gradients, product screenshots, avatar/logo style, consistency of visual assets.",
+        required: false,
+      },
+      {
+        key: "takeaways",
+        heading: "Key Takeaways / Patterns to Borrow",
+        guidance:
+          "3-6 actionable design patterns worth replicating in another product, with a one-line 'why it works' for each.",
+        required: false,
+      },
+    ],
+  },
+  {
+    id: "solution_arch",
+    name: "Solution Architecture",
+    description: "Solution architecture analysis: components, data flow, integration, trade-offs.",
+    match: [
+      "solution architect",
+      "architect",
+      "architecture",
+      "arsitektur",
+      "solution",
+      "cqrs",
+      "microservice",
+      "event-driven",
+      "event driven",
+      "modular monolith",
+      "clean architecture",
+      "onion",
+    ],
+    sections: [
+      {
+        key: "summary",
+        heading: "Summary",
+        guidance:
+          "2-4 concise sentences: the system/problem, the architectural approach chosen, and the main trade-off accepted.",
+        required: true,
+      },
+      {
+        key: "context",
+        heading: "Context & Requirements",
+        guidance:
+          "Problem being solved, constraints (scale, budget, team, timeline), functional & non-functional requirements that drive the architecture.",
+        required: true,
+      },
+      {
+        key: "architecture",
+        heading: "Architecture Overview",
+        guidance:
+          "The chosen style (monolith, modular monolith, microservices, event-driven, serverless...), main building blocks, and dependency direction between them.",
+        required: true,
+      },
+      {
+        key: "components",
+        heading: "Components & Responsibilities",
+        guidance:
+          "Each component/module/service: its responsibility, its owner, and how it stays decoupled from the others.",
+        required: true,
+      },
+      {
+        key: "data_flow",
+        heading: "Data Flow & Communication",
+        guidance:
+          "Request/event flows: sync vs async, protocols (HTTP, gRPC, message queue), contract versioning, error propagation.",
+        required: false,
+      },
+      {
+        key: "data_model",
+        heading: "Data Model & Storage",
+        guidance:
+          "Key entities, storage choice (SQL/NoSQL/cache/queue), indexing & consistency strategy, data ownership per service.",
+        required: false,
+      },
+      {
+        key: "integrations",
+        heading: "Integration Points",
+        guidance:
+          "External systems & third-party services, API contracts, auth boundaries, and failure handling.",
+        required: false,
+      },
+      {
+        key: "nfr",
+        heading: "Non-Functional Requirements",
+        guidance:
+          "Performance, scalability, availability, security, observability, and cost considerations implied by the design.",
+        required: false,
+      },
+      {
+        key: "tradeoffs",
+        heading: "Trade-offs & Decisions",
+        guidance:
+          "Key architectural decisions: what was chosen, what was given up, and when the trade-off would be worth revisiting.",
+        required: false,
+      },
+      {
+        key: "pitfalls",
+        heading: "Pitfalls / Anti-patterns",
+        guidance:
+          "Common traps when applying this approach (over-engineering, distributed monolith, sync coupling, data consistency...) and how to avoid them.",
         required: false,
       },
     ],
