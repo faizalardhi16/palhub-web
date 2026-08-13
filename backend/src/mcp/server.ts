@@ -273,6 +273,15 @@ export class PalhubMcpServer {
             sources,
           });
           const spec = this.deps.specialistService.get(result.specialist_id).name;
+          if (result.duplicate) {
+            const lines = [
+              `ℹ️ Topik udah ke-cover: **#${result.existing_id} ${result.title}** (${spec}) — gak bikin duplikat.`,
+              `- Sumber: ${result.sources.join(", ") || "unknown"}`,
+              "",
+              "Kalau mau paksa bikin catatan baru, kasih `sources` URL yang belum pernah di-crawl.",
+            ];
+            return { content: [{ type: "text", text: lines.join("\n") }] };
+          }
           const lines = [
             `✅ Catatan tersimpan: **#${result.id} ${result.title}**`,
             `- Specialist: ${spec} (id ${result.specialist_id})`,

@@ -67,6 +67,12 @@ function isJunkKnowledge(k: Knowledge): boolean {
   return JUNK_KEYWORDS.some((w) => hay.includes(w));
 }
 
+/** Filter konten sampah (film/bioskop dll) dari hasil crawl — dipakai juga oleh template service. */
+export function isJunkTitle(title: string, source = ""): boolean {
+  const hay = `${title} ${source}`.toLowerCase();
+  return JUNK_KEYWORDS.some((w) => hay.includes(w));
+}
+
 function normalizeTitle(title: string): string {
   return title.toLowerCase().trim().replace(/\s+/g, " ");
 }

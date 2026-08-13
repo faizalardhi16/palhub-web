@@ -7,6 +7,7 @@ import type { WebSearchService } from "./search.service.js";
 import type { EmbeddingService } from "./embedding.service.js";
 import type { KnowledgeTemplate } from "../templates/registry.js";
 import { detectTemplate, getTemplate, TEMPLATES } from "../templates/registry.js";
+import { deriveTags, isJunkTitle, slugify, summarize } from "./skill-export.service.js";
 
 const MAX_SOURCES = 3;
 const MAX_CONTENT_CHARS = 4000;
@@ -32,6 +33,10 @@ export interface GenerateKnowledgeResult {
   sources: string[];
   chars: number;
   preview: string;
+  /** true kalau gak bikin note baru karena sudah ada yang sama. */
+  duplicate?: boolean;
+  /** id note existing kalau duplicate. */
+  existing_id?: number | null;
 }
 
 /** Skema output LLM — di-validate biar catatan selalu rapi & lengkap. */
@@ -92,18 +97,62 @@ export class KnowledgeTemplateService {
     //    nama specialist yang SUDAH di-resolve (bukan dari input mentah).
     const finalTemplate = input.templateId ? template : detectTemplate(specialist.name);
 
-    // 3) Resolve & fetch sources
-    const urls = await this.resolveSources(topic, input.sources);
-    const sources = await this.fetchSources(urls);
-    if (sources.length === 0) {
-      throw new Error("Semua sumber gagal di-fetch. Coba kasih URL langsung yang valid.");
+    // 4) Dedupe: kalau topik ini udah ke-cover note existing (hybrid search
+    //    dapet match kuat di specialist yang sama), gak usah bikin duplikat.
+    //    Skip kalau user kasih `sources` eksplisit — itu intent buat sumber baru.
+    if (!input.sources?.length) {
+      const existing = await this.findExistingCoverage(topic, specialist.id);
+      if (existing) {
+        return {
+          id: existing.id,
+          title: existing.title,
+          specialist_id: specialist.id,
+          template: finalTemplate.id,
+          sources: existing.source ? existing.source.split(", ").filter(Boolean) : [],
+          chars: existing.content.length,
+          preview: existing.content.slice(0, 300),
+          duplicate: true,
+          existing_id: existing.id,
+        };
+      }
     }
 
-    // 4) LLM isi template → JSON (retry 1x kalau gagal validasi)
+    // 5) Resolve & fetch sources (URL yang udah dikenal di-skip biar gak
+    //    nambah duplikat dari sumber yang sama)
+    const urls = await this.resolveSources(topic, input.sources, specialist.id);
+    const sources = await this.fetchSources(urls);
+    if (sources.length === 0) {
+      throw new Error(
+        "Semua sumber gagal di-fetch atau udah ada di knowledge. " +
+          "Coba kasih URL baru yang belum pernah di-crawl, atau topic yang beda."
+      );
+    }
+
+    // 6) LLM isi template → JSON (retry 1x kalau gagal validasi)
     const { title, sections } = await this.fillTemplate(topic, finalTemplate, sources);
 
-    // 5) Render markdown & simpan
-    const markdown = this.renderMarkdown(topic, title, finalTemplate, sections, sources);
+    // 7) Cek duplikat judul (LLM kadang bikin judul yang sama persis)
+    const titleDup = this.findTitleDuplicate(title, specialist.id);
+    if (titleDup) {
+      return {
+        id: titleDup.id,
+        title: titleDup.title,
+        specialist_id: specialist.id,
+        template: finalTemplate.id,
+        sources: titleDup.source ? titleDup.source.split(", ").filter(Boolean) : [],
+        chars: titleDup.content.length,
+        preview: titleDup.content.slice(0, 300),
+        duplicate: true,
+        existing_id: titleDup.id,
+      };
+    }
+
+    // 8) Catatan terkait (wikilink ke note lain yang relevan — format sama
+    //    dengan skill bundle: [[k{id}-{slug}|judul]])
+    const related = await this.findRelated(title, specialist.id);
+
+    // 9) Render markdown (frontmatter + sections + wikilink) & simpan
+    const markdown = this.renderMarkdown(title, finalTemplate, sections, sources, related);
     const note = this.deps.knowledge.create(
       specialist.id,
       title,
@@ -111,7 +160,7 @@ export class KnowledgeTemplateService {
       sources.map((s) => s.url).join(", ")
     );
 
-    // 6) Embedding: backfill cuma proses yang missing — aman dipanggil langsung
+    // 10) Embedding: backfill cuma proses yang missing — aman dipanggil langsung
     if (this.deps.embedding?.enabled) {
       void this.deps.embedding.backfill().catch(() => {});
     }
@@ -161,18 +210,130 @@ export class KnowledgeTemplateService {
   }
 
   /** Priority: URL eksplisit → web search → LLM-suggested. */
-  private async resolveSources(topic: string, explicit?: string[]): Promise<string[]> {
+  private async resolveSources(topic: string, explicit: string[] | undefined, specialistId: number): Promise<string[]> {
     const explicitUrls = (explicit ?? []).filter((u) => /^https?:\/\//.test(u));
-    if (explicitUrls.length > 0) return explicitUrls.slice(0, MAX_SOURCES);
+    if (explicitUrls.length > 0) {
+      // URL eksplisit = intent user → hormati apa adanya, gak di-filter.
+      return explicitUrls.slice(0, MAX_SOURCES);
+    }
 
     // URL langsung di topic (misal "jelaskan https://pajak.go.id/...")
     const inline = (topic.match(URL_REGEX) ?? []).slice(0, MAX_SOURCES);
     if (inline.length > 0) return inline;
 
     const searchResults = await this.deps.search.search(topic, MAX_SOURCES);
-    if (searchResults.length > 0) return searchResults.map((r) => r.url);
+    if (searchResults.length === 0) return [];
 
-    return [];
+    // Filter: buang URL yang udah pernah di-crawl di specialist ini —
+    // biar gak terus-terusan nambah duplikat dari sumber yang sama.
+    const known = this.existingBySource(specialistId);
+    const fresh = searchResults.map((r) => r.url).filter((u) => !known.has(this.normalizeSource(u)));
+    return (fresh.length > 0 ? fresh : []).slice(0, MAX_SOURCES);
+  }
+
+  /** Set URL sumber (ternormalisasi) yang udah ada di knowledge specialist. */
+  private existingBySource(specialistId: number): Set<string> {
+    const rows = this.deps.knowledge.listBySpecialist(specialistId, 500);
+    return new Set(
+      rows
+        .map((r) => r.source)
+        .filter(Boolean)
+        .map((s) => this.normalizeSource(s))
+    );
+  }
+
+  /** Normalisasi URL buat perbandingan: buang scheme, trailing slash, lowercase. */
+  private normalizeSource(url: string): string {
+    return url
+      .trim()
+      .replace(/^https?:\/\//i, "")
+      .replace(/\/+$/, "")
+      .toLowerCase();
+  }
+
+  /**
+   * Cek apakah topik udah ke-cover note existing.
+   * Syarat: hasil search harus HYBRID (keyword + semantic confirm) dengan
+   * score >= 0.5 — keyword-only itu sinyal lemah (cuma term-ratio, banyak
+   * false positive kayak "PPh Pasal 22" vs catatan "PPh Pasal 21").
+   * Guard angka: topik & title yang punya angka BERBEDA dianggap topik beda.
+   */
+  private async findExistingCoverage(topic: string, specialistId: number): Promise<{
+    id: number;
+    title: string;
+    content: string;
+    source: string;
+  } | null> {
+    try {
+      if (this.deps.embedding?.enabled) {
+        const hits = await this.deps.embedding.search(topic, { specialistId, limit: 1, mode: "hybrid" });
+        const top = hits[0];
+        if (
+          top &&
+          top.specialist_id === specialistId &&
+          top.method === "hybrid" &&
+          top.score >= 0.5 &&
+          !this.hasConflictingNumber(topic, top.title)
+        ) {
+          return { id: top.id, title: top.title, content: top.content, source: top.source };
+        }
+        return null;
+      }
+    } catch {
+      /* fall through ke keyword */
+    }
+    const kw = this.deps.knowledge.search(specialistId, topic, 3);
+    if (kw.length === 0) return null;
+    // Keyword fallback: match title persis / source sama
+    const terms = topic.toLowerCase().split(/\s+/).filter((t) => t.length > 3);
+    const best = kw[0];
+    const hay = `${best.title} ${best.content.slice(0, 400)}`.toLowerCase();
+    const hit = terms.filter((t) => hay.includes(t)).length / Math.max(1, terms.length);
+    if (hit >= 0.8 && !this.hasConflictingNumber(topic, best.title)) {
+      return { id: best.id, title: best.title, content: best.content, source: best.source };
+    }
+    return null;
+  }
+
+  /**
+   * True kalau dua teks punya angka yang BEDA SEMUA (misal "Pasal 22" vs
+   * "Pasal 21") — indikasi topik beda, jangan dianggap duplikat.
+   */
+  private hasConflictingNumber(a: string, b: string): boolean {
+    const numsA = new Set(a.match(/\d+/g) ?? []);
+    const numsB = new Set(b.match(/\d+/g) ?? []);
+    if (numsA.size === 0 || numsB.size === 0) return false;
+    return [...numsA].every((n) => !numsB.has(n));
+  }
+
+  /** Cek duplikat judul (normalized) di specialist yang sama. */
+  private findTitleDuplicate(title: string, specialistId: number): { id: number; title: string; content: string; source: string } | null {
+    const norm = title.toLowerCase().trim().replace(/\s+/g, " ");
+    const rows = this.deps.knowledge.listBySpecialist(specialistId, 500);
+    const dup = rows.find((r) => r.title.toLowerCase().trim().replace(/\s+/g, " ") === norm);
+    return dup ? { id: dup.id, title: dup.title, content: dup.content, source: dup.source } : null;
+  }
+
+  /** Cari note terkait (wikilink) — hybrid search judul, filter junk & self. */
+  private async findRelated(title: string, specialistId: number, limit = 3): Promise<Array<{ id: number; title: string }>> {
+    const clean = (h: { id: number; title: string }) =>
+      h.title.toLowerCase() !== title.toLowerCase() && !isJunkTitle(h.title);
+    try {
+      if (this.deps.embedding?.enabled) {
+        const hits = await this.deps.embedding.search(title, { specialistId, limit: limit + 4, mode: "hybrid" });
+        return hits
+          .filter((h) => h.score >= 0.38 && clean(h))
+          .slice(0, limit)
+          .map((h) => ({ id: h.id, title: h.title }));
+      }
+    } catch {
+      /* fall through */
+    }
+    return this.deps.knowledge
+      .search(specialistId, title, limit + 4)
+      .filter(clean)
+      .slice(0, limit)
+      .map((k) => ({ id: k.id, title: k.title }));
   }
 
   private async fetchSources(urls: string[]): Promise<Array<{ url: string; text: string }>> {
@@ -284,27 +445,51 @@ ${sourceBlock}`;
     return parsed;
   }
 
+  /**
+   * Render catatan markdown dengan konvensi yang SAMA dengan skill bundle:
+   * frontmatter (title/source/date/tier/tags/summary) + body + wikilink
+   * `[[k{id}-{slug}|judul]]` ke catatan terkait.
+   */
   private renderMarkdown(
-    topic: string,
     title: string,
     template: KnowledgeTemplate,
     sections: Record<string, string>,
-    sources: Array<{ url: string; text: string }>
+    sources: Array<{ url: string; text: string }>,
+    related: Array<{ id: number; title: string }>
   ): string {
     const date = new Date().toISOString().slice(0, 10);
+    const sourceStr = sources.map((s) => s.url).join(", ") || "unknown";
     const sourceList = sources.map((s) => `- ${s.url}`).join("\n");
-    const lines: string[] = [
-      `# ${title}`,
-      "",
-      `> Topik: ${topic} • Template: ${template.name} • Tanggal: ${date}`,
-      "",
-    ];
+    const tags = deriveTags(title, sourceStr);
+
+    const body: string[] = [`# ${title}`, ""];
     for (const section of template.sections) {
       const content = (sections[section.key] ?? "").trim();
       if (!content) continue;
-      lines.push(`## ${section.heading}`, "", content, "");
+      body.push(`## ${section.heading}`, "", content, "");
     }
-    lines.push("## Referensi", "", sourceList, "");
-    return lines.join("\n").trim();
+    body.push("## Referensi", "", sourceList, "");
+    if (related.length > 0) {
+      body.push("", "## Catatan Terkait", "");
+      for (const r of related) {
+        body.push(`- [[k${r.id}-${slugify(r.title).slice(0, 48)}|${r.title}]]`);
+      }
+    }
+    const bodyText = body.join("\n").trim();
+
+    const frontmatter = [
+      "---",
+      `title: ${title.replace(/:/g, " -")}`,
+      `source: ${sourceStr}`,
+      `date: ${date}`,
+      `tier: generated`,
+      `template: ${template.id}`,
+      `tags: [${tags.join(", ")}]`,
+      `summary: ${summarize(bodyText)}`,
+      "---",
+      "",
+    ].join("\n");
+
+    return frontmatter + bodyText;
   }
 }
