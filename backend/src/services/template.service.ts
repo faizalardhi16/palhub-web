@@ -11,7 +11,9 @@ import { deriveTags, isJunkTitle, summarize } from "./skill-export.service.js";
 import { renderFrontmatter, renderRelatedSection } from "./note-format.js";
 
 const MAX_SOURCES = 3;
-const MAX_CONTENT_CHARS = 4000;
+// 2500 chars/source — cukup buat analisis & ringkasan, tapi bikin LLM call
+// jauh lebih cepat (input 3×4000 chars → generate bisa 60-90s, timeout MCP).
+const MAX_CONTENT_CHARS = 2500;
 const FETCH_TIMEOUT_MS = 15_000;
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
@@ -372,24 +374,27 @@ export class KnowledgeTemplateService {
   }
 
   private async fetchSources(urls: string[]): Promise<Array<{ url: string; text: string }>> {
-    const out: Array<{ url: string; text: string }> = [];
-    for (const url of urls) {
-      try {
-        const res = await fetch(url, {
-          headers: { "User-Agent": USER_AGENT },
-          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        });
-        if (!res.ok) continue;
-        const html = await res.text();
-        const $ = cheerio.load(html);
-        $("script, style, noscript, nav, footer, header, aside, form").remove();
-        const text = $("body").text().replace(/\s+/g, " ").trim();
-        if (text) out.push({ url, text: text.slice(0, MAX_CONTENT_CHARS) });
-      } catch {
-        /* skip */
-      }
-    }
-    return out;
+    // PARALEL — 3 URL sequential = 3×15s; paralel = max(15s). Ini krusial
+    // buat MCP tool yang client-nya timeout ~60s.
+    const fetched = await Promise.all(
+      urls.map(async (url): Promise<{ url: string; text: string } | null> => {
+        try {
+          const res = await fetch(url, {
+            headers: { "User-Agent": USER_AGENT },
+            signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+          });
+          if (!res.ok) return null;
+          const html = await res.text();
+          const $ = cheerio.load(html);
+          $("script, style, noscript, nav, footer, header, aside, form").remove();
+          const text = $("body").text().replace(/\s+/g, " ").trim();
+          return text ? { url, text: text.slice(0, MAX_CONTENT_CHARS) } : null;
+        } catch {
+          return null;
+        }
+      })
+    );
+    return fetched.filter((s): s is { url: string; text: string } => s !== null);
   }
 
   /** LLM mengisi template → JSON. Retry 1x dengan feedback error kalau validasi gagal. */
@@ -448,7 +453,7 @@ ${sourceBlock}`;
           content: `Output sebelumnya GAGAL validasi dengan error:\n${feedback}\n\nPerbaiki dan kirim ulang JSON yang valid.`,
         });
       }
-      const raw = await this.deps.llm.chat(messages, { temperature: 0.2, maxTokens: 16000, json: true });
+      const raw = await this.deps.llm.chat(messages, { temperature: 0.2, maxTokens: 8000, json: true });
       return this.parseJson(raw, template);
     };
 
