@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import type { ToolExecutor, ToolExecutionContext, ToolExecutionResult } from "./types.js";
 import type { WebSearchService } from "../services/search.service.js";
+import { buildKnowledgeNote, cleanRelated } from "../services/note-format.js";
 
 const MAX_SOURCES = 5;
 const MAX_CONTENT_CHARS = 4000;
@@ -54,7 +55,20 @@ export class CrawlExecutor implements ToolExecutor {
       }
 
       const title = candidate.title || new URL(candidate.url).hostname;
-      await ctx.knowledge.create(ctx.specialist.id, title, text, candidate.url);
+      // Simpan dengan format yang SAMA dengan knowledge_generate:
+      // frontmatter + body + wikilink Catatan Terkait (bukan teks mentah).
+      const related = this.findRelated(ctx, title);
+      const note = buildKnowledgeNote(
+        {
+          title,
+          source: candidate.url,
+          date: new Date().toISOString().slice(0, 10),
+          tier: "crawl",
+        },
+        text,
+        related
+      );
+      await ctx.knowledge.create(ctx.specialist.id, title, note, candidate.url);
       saved.push(candidate.url);
       lines.push(`- ✅ [${title}](${candidate.url}) — ${text.length.toLocaleString("id-ID")} karakter`);
     }
@@ -106,6 +120,11 @@ export class CrawlExecutor implements ToolExecutor {
     } catch {
       return [];
     }
+  }
+
+  /** Cari note terkait (wikilink) — keyword search, filter junk & self. */
+  private findRelated(ctx: ToolExecutionContext, title: string, limit = 3): Array<{ id: number; title: string }> {
+    return cleanRelated(ctx.knowledge.search(ctx.specialist.id, title, limit + 4), title).slice(0, limit);
   }
 
   private extractUrls(text: string): string[] {

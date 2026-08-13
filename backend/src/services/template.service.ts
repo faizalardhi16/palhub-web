@@ -7,7 +7,8 @@ import type { WebSearchService } from "./search.service.js";
 import type { EmbeddingService } from "./embedding.service.js";
 import type { KnowledgeTemplate } from "../templates/registry.js";
 import { detectTemplate, getTemplate, TEMPLATES } from "../templates/registry.js";
-import { deriveTags, isJunkTitle, slugify, summarize } from "./skill-export.service.js";
+import { deriveTags, isJunkTitle, summarize } from "./skill-export.service.js";
+import { renderFrontmatter, renderRelatedSection } from "./note-format.js";
 
 const MAX_SOURCES = 3;
 const MAX_CONTENT_CHARS = 4000;
@@ -517,7 +518,6 @@ ${sourceBlock}`;
     const date = new Date().toISOString().slice(0, 10);
     const sourceStr = sources.map((s) => s.url).join(", ") || "unknown";
     const sourceList = sources.map((s) => `- ${s.url}`).join("\n");
-    const tags = deriveTags(title, sourceStr);
 
     const body: string[] = [`# ${title}`, ""];
     for (const section of template.sections) {
@@ -526,27 +526,13 @@ ${sourceBlock}`;
       body.push(`## ${section.heading}`, "", content, "");
     }
     body.push("## Referensi", "", sourceList, "");
-    if (related.length > 0) {
-      body.push("", "## Catatan Terkait", "");
-      for (const r of related) {
-        body.push(`- [[k${r.id}-${slugify(r.title).slice(0, 48)}|${r.title}]]`);
-      }
-    }
     const bodyText = body.join("\n").trim();
 
-    const frontmatter = [
-      "---",
-      `title: ${title.replace(/:/g, " -")}`,
-      `source: ${sourceStr}`,
-      `date: ${date}`,
-      `tier: generated`,
-      `template: ${template.id}`,
-      `tags: [${tags.join(", ")}]`,
-      `summary: ${summarize(bodyText)}`,
-      "---",
-      "",
-    ].join("\n");
-
-    return frontmatter + bodyText;
+    const fm = renderFrontmatter(
+      { title, source: sourceStr, date, tier: "generated", template: template.id },
+      deriveTags(title, sourceStr),
+      summarize(bodyText)
+    );
+    return fm + bodyText + renderRelatedSection(related);
   }
 }
