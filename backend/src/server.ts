@@ -11,6 +11,7 @@ import { ProcedureService } from "./services/procedure.service.js";
 import { ToolService } from "./services/tool.service.js";
 import { KnowledgeService } from "./services/knowledge.service.js";
 import { EmbeddingService } from "./services/embedding.service.js";
+import { KnowledgeTemplateService } from "./services/template.service.js";
 import { PlaygroundService } from "./services/playground.service.js";
 import { PipelineService } from "./services/pipeline.service.js";
 import { SkillExportService } from "./services/skill-export.service.js";
@@ -71,6 +72,14 @@ async function main(): Promise<void> {
 
   const pipeline = new PipelineService({ db, specialistService, knowledge, llm });
   const skillExport = new SkillExportService(db, pipeline, specialistService, knowledge);
+  const templateService = new KnowledgeTemplateService({
+    knowledge,
+    specialists: specialistService,
+    search,
+    llm,
+    embedding,
+  });
+  console.log(`📋 Knowledge templates: ${templateService.listTemplates().length} domain`);
 
   const mcp = new PalhubMcpServer({
     registry,
@@ -83,6 +92,7 @@ async function main(): Promise<void> {
     dataDir: config.dataDir,
     pipeline,
     skillExport,
+    templateService,
   });
 
   // --- HTTP server ---

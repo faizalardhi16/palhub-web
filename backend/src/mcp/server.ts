@@ -7,6 +7,7 @@ import type { PlaygroundDeps } from "../services/playground.service.js";
 import type { PipelineService } from "../services/pipeline.service.js";
 import type { SkillExportService } from "../services/skill-export.service.js";
 import type { EmbeddingService } from "../services/embedding.service.js";
+import type { KnowledgeTemplateService } from "../services/template.service.js";
 import { deriveTags } from "../services/skill-export.service.js";
 import { slugify } from "../util.js";
 
@@ -19,6 +20,7 @@ export interface McpDeps extends PlaygroundDeps {
   pipeline: PipelineService;
   skillExport?: SkillExportService;
   embedding?: EmbeddingService;
+  templateService?: KnowledgeTemplateService;
 }
 
 /**
@@ -207,6 +209,93 @@ export class PalhubMcpServer {
         lines.push("");
         lines.push("Pakai `knowledge_search` dengan `specialist_id` kalau mau cari di cabang tertentu.");
         return { content: [{ type: "text", text: lines.join("\n") }] };
+      }
+    );
+
+    // knowledge_templates — daftar template catatan yang tersedia
+    server.registerTool(
+      "knowledge_templates",
+      {
+        title: "List knowledge templates",
+        description:
+          "Daftar template catatan knowledge per domain (finance, legal, tech, business, generic) + sections-nya. Gunakan sebelum knowledge_generate kalau mau milih template eksplisit.",
+        inputSchema: {},
+      },
+      async () => {
+        const templates = this.deps.templateService?.listTemplates() ?? [];
+        const lines = templates.length
+          ? templates
+              .map((t) => `- **${t.id}** — ${t.name}: ${t.description}\n  Sections: ${t.sections.join(" | ")}`)
+              .join("\n")
+          : "Template service belum aktif.";
+        return { content: [{ type: "text", text: lines }] };
+      }
+    );
+
+    // knowledge_generate — crawl + AI susun catatan terstruktur sesuai template
+    server.registerTool(
+      "knowledge_generate",
+      {
+        title: "Generate knowledge note (crawl + template)",
+        description:
+          "Crawl sumber (URL eksplisit / web search) → AI menyusun catatan domain knowledge TERSTRUKTUR sesuai template per domain (finance, legal, tech, business, generic) → simpan ke knowledge store + embedding. Catatan hasil structured, bukan teks crawl mentah. Input: topic + optional specialist_id / template / sources. Bisa makan waktu 30-60 detik (fetch + LLM).",
+        inputSchema: {
+          topic: z.string().describe("Topik yang mau dicari & disusun jadi catatan (misal 'PPh 21 TER 2024')"),
+          specialist_id: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe("ID specialist pemilik catatan (dari knowledge_topics). Auto-detect kalau kosong."),
+          template: z
+            .enum(["finance", "legal", "tech", "business", "generic"])
+            .optional()
+            .describe("Template domain. Auto-detect dari nama specialist kalau kosong."),
+          sources: z
+            .array(z.string())
+            .max(3)
+            .optional()
+            .describe("URL sumber eksplisit (max 3). Kosong = auto web search."),
+        },
+      },
+      async ({ topic, specialist_id, template, sources }) => {
+        const svc = this.deps.templateService;
+        if (!svc) {
+          return {
+            content: [{ type: "text", text: "Template service tidak aktif (backend lama / tidak di-wire)." }],
+          };
+        }
+        try {
+          const result = await svc.generate({
+            topic,
+            specialistId: specialist_id ?? null,
+            templateId: template,
+            sources,
+          });
+          const spec = this.deps.specialistService.get(result.specialist_id).name;
+          const lines = [
+            `✅ Catatan tersimpan: **#${result.id} ${result.title}**`,
+            `- Specialist: ${spec} (id ${result.specialist_id})`,
+            `- Template: ${result.template}`,
+            `- Sumber (${result.sources.length}): ${result.sources.join(", ")}`,
+            `- Ukuran: ${result.chars.toLocaleString("id-ID")} karakter`,
+            "",
+            "### Preview:",
+            result.preview,
+            "",
+            "Cari catatan ini via `knowledge_search` dengan query yang relevan.",
+          ];
+          return { content: [{ type: "text", text: lines.join("\n") }] };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `❌ Gagal generate: ${(error as Error).message}`,
+              },
+            ],
+          };
+        }
       }
     );
 

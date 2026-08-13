@@ -20,6 +20,9 @@ export class OpenAiCompatibleLlmClient implements LlmClient {
   async chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<string> {
     // Retry 5x — DeepSeek peak hours sering balikin empty content / 5xx
     // transient. Backoff exponensial: 2, 8, 18, 32s (≈60s total extra).
+    // CATATAN: kalau finish_reason = "length" (max_tokens ke-habis buat
+    // reasoning model berpikir) itu BUKAN transient — langsung error,
+    // jangan retry 5x percuma.
     let lastError: Error | null = null;
     const attempts = 5;
     for (let attempt = 0; attempt < attempts; attempt++) {
@@ -28,8 +31,11 @@ export class OpenAiCompatibleLlmClient implements LlmClient {
         await new Promise((r) => setTimeout(r, delay));
       }
       try {
-        const content = await this.chatOnce(messages, opts);
+        const { content, finishReason } = await this.chatOnce(messages, opts);
         if (content.trim()) return content;
+        if (finishReason === "length") {
+          throw new Error("LLM returned empty content (max_tokens habis buat reasoning) — naikkan maxTokens");
+        }
         lastError = new Error("LLM returned empty content");
       } catch (error) {
         lastError = error as Error;
@@ -41,7 +47,10 @@ export class OpenAiCompatibleLlmClient implements LlmClient {
     throw lastError ?? new Error("LLM request failed");
   }
 
-  private async chatOnce(messages: ChatMessage[], opts: ChatOptions = {}): Promise<string> {
+  private async chatOnce(
+    messages: ChatMessage[],
+    opts: ChatOptions = {}
+  ): Promise<{ content: string; finishReason: string | null }> {
     const res = await fetch(`${this.cfg.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
@@ -64,8 +73,12 @@ export class OpenAiCompatibleLlmClient implements LlmClient {
     }
 
     const data = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
+      choices?: { message?: { content?: string }; finish_reason?: string }[];
     };
-    return data.choices?.[0]?.message?.content ?? "";
+    const choice = data.choices?.[0];
+    return {
+      content: choice?.message?.content ?? "",
+      finishReason: choice?.finish_reason ?? null,
+    };
   }
 }
