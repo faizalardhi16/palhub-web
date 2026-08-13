@@ -59,7 +59,18 @@ async function main(): Promise<void> {
   console.log(`🔍 Web search provider: ${search.active}`);
 
   const registry = new ToolExecutorRegistry();
-  registry.register(new CrawlExecutor(search));
+  // CrawlExecutor butuh templateService (pipeline crawl → format → save),
+  // jadi templateService dibuat sebelum registry di-register.
+  const templateService = new KnowledgeTemplateService({
+    knowledge,
+    specialists: specialistService,
+    search,
+    llm,
+    embedding,
+  });
+  console.log(`📋 Knowledge templates: ${templateService.listTemplates().length} domain`);
+
+  registry.register(new CrawlExecutor(templateService));
   registry.register(new GenerateDocExecutor());
   registry.register(new KnowledgeQueryExecutor());
   registry.register(new WebSearchExecutor(search));
@@ -76,14 +87,6 @@ async function main(): Promise<void> {
 
   const pipeline = new PipelineService({ db, specialistService, knowledge, llm });
   const skillExport = new SkillExportService(db, pipeline, specialistService, knowledge);
-  const templateService = new KnowledgeTemplateService({
-    knowledge,
-    specialists: specialistService,
-    search,
-    llm,
-    embedding,
-  });
-  console.log(`📋 Knowledge templates: ${templateService.listTemplates().length} domain`);
 
   const mcp = new PalhubMcpServer({
     registry,

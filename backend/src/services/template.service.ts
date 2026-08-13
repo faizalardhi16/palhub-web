@@ -427,7 +427,7 @@ KEY JSON sections yang TERSEDIA (pilih SEMUA key yang required, plus opsional ka
 ${sectionSpec}
 
 ATURAN:
-- Tulis SELURUH isi catatan dalam Bahasa Inggris profesional (English), walaupun topik/prompt atau sumbernya berbahasa Indonesia/bahasa lain. Nama proper & istilah teknis tetap seperti aslinya.
+- Tulis SELURUH isi catatan dalam Bahasa Inggris profesional (English), walaupun topik/prompt atau sumbernya berbahasa Indonesia/bahasa lain. TRANSLATE semua konten — JANGAN menyalin kalimat Indonesia apa adanya. Kalau seluruh sumber berbahasa Indonesia, catatan tetap harus 100% English. Nama proper (instansi, nama undang-undang, istilah teknis) tetap seperti aslinya.
 - Judul juga dalam Bahasa Inggris.
 - Fakta harus dari sumber, JANGAN mengarang angka/regulasi. Kalau sumber tidak menyebut, tulis "not mentioned in the sources".
 - Section yang wajib TIDAK BOLEH kosong.

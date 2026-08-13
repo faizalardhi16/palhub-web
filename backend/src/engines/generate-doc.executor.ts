@@ -42,7 +42,9 @@ export class GenerateDocExecutor implements ToolExecutor {
       parts.push("Buat dokumen markdown yang lengkap, terstruktur, dan profesional.");
     }
 
-    parts.push("Gunakan Bahasa Indonesia kecuali istilah teknis. Jawab langsung dengan markdown, tanpa pembukaan.");
+    parts.push(
+      "Write the ENTIRE document in professional English, even if the topic/prompt or reference materials are in Indonesian or another language. TRANSLATE all content — never copy Indonesian sentences verbatim. Proper names (institutions, laws, technical terms) stay as-is. Respond directly with markdown, no preamble."
+    );
     return parts.filter(Boolean).join("\n");
   }
 
