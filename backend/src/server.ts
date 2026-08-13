@@ -78,6 +78,8 @@ async function main(): Promise<void> {
     knowledge,
     llm,
     dataDir: config.dataDir,
+    pipeline,
+    skillExport,
   });
 
   // --- HTTP server ---

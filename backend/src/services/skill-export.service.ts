@@ -159,12 +159,15 @@ export class SkillExportService {
         "",
         "## Daftar Catatan",
         "",
+        "> Format: [[nama-file|judul]] (wikilink — Obsidian-compatible). Buka file-nya untuk isi lengkap.",
+        "",
       ];
       for (const k of notes) {
-        const filename = `k${k.id}-${slugify(k.title).slice(0, 48)}.md`;
-        indexLines.push(`- [${k.title}](${filename}) — ${k.source || "unknown"}`);
+        const filename = `k${k.id}-${slugify(k.title).slice(0, 48)}`;
+        const wikilink = `[[${filename}|${k.title}]]`;
+        indexLines.push(`- ${wikilink} — ${k.source || "unknown"}`);
         knowledgeNoteFiles.push({
-          path: `${dir}/${filename}`,
+          path: `${dir}/${filename}.md`,
           content: renderKnowledgeNote(k),
         });
       }
@@ -250,7 +253,8 @@ export class SkillExportService {
     lines.push("");
     lines.push("Aturan pakai knowledge:");
     lines.push("1. Selalu cek tanggal & sumber catatan (frontmatter `source`, `date`).");
-    lines.push("2. Kalau info di knowledge kurang / kedaluwarsa / bertentangan, **tanya user** — jangan asumsi.");
+    lines.push("2. Index pakai wikilink `[[file|judul]]` — resolve ke file `.md` dengan nama yang sama di folder itu.");
+    lines.push("3. Kalau info di knowledge kurang / kedaluwarsa / bertentangan, **tanya user** — jangan asumsi.");
     lines.push("");
     lines.push("## Stages");
     lines.push("");
@@ -279,6 +283,14 @@ export class SkillExportService {
     lines.push("");
     lines.push("- Ringkasan eksekusi per stage (apa yang dikerjakan, keputusan penting).");
     lines.push("- Artefak: daftar file/dokumen yang dihasilkan.");
+    lines.push("");
+    lines.push("## MCP PalHub (opsional, kalau tersedia)");
+    lines.push("");
+    lines.push("Kalau MCP server PalHub ke-connect (endpoint `http://43.133.142.161:8787/mcp`), prefer pakai tool MCP buat data live:");
+    lines.push("- `knowledge_search` — cari knowledge fresh (bukan snapshot bundle) + sumbernya.");
+    lines.push("- `orchestrator_plan` — minta rekomendasi pipeline/stages buat task user.");
+    lines.push("- `pipeline_run` — jalankan pipeline penuh server-side kalau user minta otomatis.");
+    lines.push("Bundle `knowledge/` di skill ini tetap jadi fallback offline.");
     lines.push("");
 
     return lines.join("\n");

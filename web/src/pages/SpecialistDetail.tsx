@@ -2,6 +2,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
   Blocks,
+  ChevronLeft,
+  ChevronRight,
   FileSearch,
   FileText,
   FlaskConical,
@@ -11,6 +13,7 @@ import {
   Search,
   Trash2,
   Wrench,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -473,21 +476,21 @@ export default function SpecialistDetail() {
                         </span>
                         <div className="flex items-center gap-2">
                           <button
-                            className="action-secondary !px-4 !py-2"
+                            className="action-secondary inline-flex items-center gap-1.5 !px-4 !py-2"
                             disabled={knowledgePage.page <= 1}
                             onClick={() => setKnowledgePageNum((p) => Math.max(1, p - 1))}
                           >
-                            ← Prev
+                            <ChevronLeft className="h-4 w-4" /> Prev
                           </button>
                           <span className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
                             {knowledgePage.page} / {knowledgePage.totalPages}
                           </span>
                           <button
-                            className="action-secondary !px-4 !py-2"
+                            className="action-secondary inline-flex items-center gap-1.5 !px-4 !py-2"
                             disabled={knowledgePage.page >= knowledgePage.totalPages}
                             onClick={() => setKnowledgePageNum((p) => Math.min(knowledgePage.totalPages, p + 1))}
                           >
-                            Next →
+                            Next <ChevronRight className="h-4 w-4" />
                           </button>
                         </div>
                       </div>
@@ -526,11 +529,11 @@ export default function SpecialistDetail() {
                   </h3>
                 </div>
                 <button
-                  className="action-secondary !px-3.5 !py-2.5 shrink-0"
+                  className="action-secondary inline-flex items-center gap-1 !px-3.5 !py-2.5 shrink-0"
                   onClick={() => setDetailItem(null)}
                   aria-label="Tutup"
                 >
-                  ✕
+                  <X className="h-4 w-4" />
                 </button>
               </div>
 

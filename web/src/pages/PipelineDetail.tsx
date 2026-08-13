@@ -1,17 +1,38 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Download,
+  FileText,
+  HelpCircle,
+  Lightbulb,
+  Link2,
+  Loader2,
+  MessageSquare,
+  PartyPopper,
+  Play,
+  Plus,
+  Trash2,
+  X,
+  XCircle,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { api } from "../api/client";
 import type { PipelineDetail, PipelineRunDetail, PipelineStage, SkillExport, Specialist } from "../types";
 
-const EVENT_LABEL: Record<string, { icon: string; cls: string; label: string }> = {
-  stage_start: { icon: "▶️", cls: "text-slate-700 bg-slate-100", label: "Stage mulai" },
-  stage_done: { icon: "✅", cls: "text-emerald-700 bg-emerald-50", label: "Stage selesai" },
-  need_more: { icon: "❓", cls: "text-amber-700 bg-amber-50", label: "Butuh info" },
-  resolve: { icon: "🔗", cls: "text-violet-700 bg-violet-50", label: "Resolve specialist" },
-  answer: { icon: "💬", cls: "text-sky-700 bg-sky-50", label: "Jawaban specialist" },
-  stage_failed: { icon: "💥", cls: "text-rose-700 bg-rose-50", label: "Stage gagal" },
-  pipeline_done: { icon: "🎉", cls: "text-emerald-700 bg-emerald-50", label: "Pipeline selesai" },
-  pipeline_failed: { icon: "❌", cls: "text-rose-700 bg-rose-50", label: "Pipeline gagal" },
+const EVENT_LABEL: Record<string, { icon: LucideIcon; cls: string; label: string }> = {
+  stage_start: { icon: Play, cls: "text-slate-700 bg-slate-100", label: "Stage mulai" },
+  stage_done: { icon: CheckCircle2, cls: "text-emerald-700 bg-emerald-50", label: "Stage selesai" },
+  need_more: { icon: HelpCircle, cls: "text-amber-700 bg-amber-50", label: "Butuh info" },
+  resolve: { icon: Link2, cls: "text-violet-700 bg-violet-50", label: "Resolve specialist" },
+  answer: { icon: MessageSquare, cls: "text-sky-700 bg-sky-50", label: "Jawaban specialist" },
+  stage_failed: { icon: AlertTriangle, cls: "text-rose-700 bg-rose-50", label: "Stage gagal" },
+  pipeline_done: { icon: PartyPopper, cls: "text-emerald-700 bg-emerald-50", label: "Pipeline selesai" },
+  pipeline_failed: { icon: XCircle, cls: "text-rose-700 bg-rose-50", label: "Pipeline gagal" },
 };
 
 export default function PipelineDetail() {
@@ -172,18 +193,20 @@ export default function PipelineDetail() {
     <main className="page-shell">
       <header className="flex flex-col gap-4 pb-0 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <button className="text-sm font-semibold text-brand-600 hover:text-brand-700" onClick={() => navigate("/pipelines")}>
-            ← Pipelines
+          <button className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:text-brand-700" onClick={() => navigate("/pipelines")}>
+            <ArrowLeft className="h-4 w-4" /> Pipelines
           </button>
           <h1 className="mt-2 font-display text-3xl font-bold tracking-[-0.05em] text-slate-950">{pipeline.name}</h1>
           {pipeline.description && <p className="mt-2 max-w-2xl text-[15px] leading-7 text-slate-600">{pipeline.description}</p>}
         </div>
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-          <button className="action-secondary" disabled={exporting} onClick={exportSkill}>
-            {exporting ? "⏳ Exporting..." : "⬇️ Export Skill"}
+          <button className="action-secondary inline-flex items-center justify-center gap-1.5" disabled={exporting} onClick={exportSkill}>
+            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {exporting ? "Exporting..." : "Export Skill"}
           </button>
-          <button className="action-primary" disabled={running || pipeline.stages.length === 0} onClick={run}>
-            {running ? "⏳ Running..." : "▶️ Run Pipeline"}
+          <button className="action-primary inline-flex items-center justify-center gap-1.5" disabled={running || pipeline.stages.length === 0} onClick={run}>
+            {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+            {running ? "Running..." : "Run Pipeline"}
           </button>
         </div>
       </header>
@@ -199,7 +222,7 @@ export default function PipelineDetail() {
           </p>
 
           {pipeline.stages.length === 0 ? (
-            <div className="empty mt-4">Belum ada stage — tambah di bawah 👇</div>
+            <div className="empty mt-4">Belum ada stage — tambah di bawah.</div>
           ) : (
             <div className="mt-4 flex flex-col gap-3">
               {pipeline.stages.map((s, i) => (
@@ -211,9 +234,9 @@ export default function PipelineDetail() {
                       <p className="truncate text-xs text-slate-500">{specialistName(s.specialist_id)} · max {s.max_iterations} iterasi</p>
                     </div>
                     <div className="flex shrink-0 gap-1">
-                      <button className="btn small" disabled={i === 0} onClick={() => moveStage(i, -1)}>↑</button>
-                      <button className="btn small" disabled={i === pipeline.stages.length - 1} onClick={() => moveStage(i, 1)}>↓</button>
-                      <button className="btn small danger" onClick={() => removeStage(s.id)}>✕</button>
+                      <button className="btn small" disabled={i === 0} onClick={() => moveStage(i, -1)}><ChevronUp className="h-3.5 w-3.5" /></button>
+                      <button className="btn small" disabled={i === pipeline.stages.length - 1} onClick={() => moveStage(i, 1)}><ChevronDown className="h-3.5 w-3.5" /></button>
+                      <button className="btn small danger" onClick={() => removeStage(s.id)}><Trash2 className="h-3.5 w-3.5" /></button>
                     </div>
                   </div>
                   {s.instruction && (
@@ -251,8 +274,8 @@ export default function PipelineDetail() {
                   {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
-              <button className="action-secondary self-start" disabled={!stageSpecialist || !stageName.trim()} onClick={addStage}>
-                + Tambah Stage
+              <button className="action-secondary inline-flex items-center gap-1.5 self-start" disabled={!stageSpecialist || !stageName.trim()} onClick={addStage}>
+                <Plus className="h-4 w-4" /> Tambah Stage
               </button>
             </div>
           </div>
@@ -266,7 +289,7 @@ export default function PipelineDetail() {
             <div className="mt-4">
               <div className="flex items-center gap-3">
                 <span
-                  className={`rounded-full px-3 py-1 text-xs font-bold ${
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
                     activeRun.status === "done"
                       ? "bg-emerald-50 text-emerald-700"
                       : activeRun.status === "failed"
@@ -274,7 +297,13 @@ export default function PipelineDetail() {
                         : "bg-amber-50 text-amber-700"
                   }`}
                 >
-                  {activeRun.status === "running" ? "⏳ running" : activeRun.status === "done" ? "✅ done" : "❌ failed"}
+                  {activeRun.status === "running" ? (
+                    <><Loader2 className="h-3 w-3 animate-spin" /> running</>
+                  ) : activeRun.status === "done" ? (
+                    <><CheckCircle2 className="h-3 w-3" /> done</>
+                  ) : (
+                    <><XCircle className="h-3 w-3" /> failed</>
+                  )}
                 </span>
                 <span className="text-xs text-slate-500">Run #{activeRun.id}</span>
               </div>
@@ -286,10 +315,12 @@ export default function PipelineDetail() {
               <div className="mt-3 max-h-[420px] space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">
                 {activeRun.events.length === 0 && <p className="text-sm text-slate-400">Menunggu event...</p>}
                 {activeRun.events.map((ev) => {
-                  const meta = EVENT_LABEL[ev.kind] ?? { icon: "•", cls: "text-slate-600 bg-slate-100", label: ev.kind };
+                  const meta = EVENT_LABEL[ev.kind] ?? { icon: HelpCircle, cls: "text-slate-600 bg-slate-100", label: ev.kind };
                   return (
                     <div key={ev.id} className={`rounded-lg px-3 py-2 text-sm ${meta.cls}`}>
-                      <span className="font-bold">{meta.icon} {meta.label}</span>
+                      <span className="inline-flex items-center gap-1.5 font-bold">
+                        <meta.icon className="h-3.5 w-3.5" /> {meta.label}
+                      </span>
                       {ev.stage_position !== null && <span className="opacity-60"> · stage #{ev.stage_position + 1}</span>}
                       {ev.content && <p className="mt-1 whitespace-pre-wrap text-[13px] leading-5">{ev.content}</p>}
                     </div>
@@ -299,7 +330,7 @@ export default function PipelineDetail() {
               </div>
             </div>
           ) : (
-            <div className="empty mt-4">Belum ada run. Klik <b>▶️ Run Pipeline</b> buat mulai eksekusi.</div>
+            <div className="empty mt-4">Belum ada run. Klik <b>Run Pipeline</b> buat mulai eksekusi.</div>
           )}
 
           <h3 className="mt-6 text-sm font-bold text-slate-800">Riwayat Run</h3>
@@ -341,11 +372,11 @@ export default function PipelineDetail() {
                   )}
                 </p>
               </div>
-              <button className="btn small" onClick={() => setExportData(null)}>✕</button>
+              <button className="btn small" onClick={() => setExportData(null)}><X className="h-4 w-4" /></button>
             </div>
 
             <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">
-              <p className="font-bold">💡 Skill ini dijalanin oleh agent di tool lo, bukan backend.</p>
+              <p className="inline-flex items-center gap-1.5 font-bold"><Lightbulb className="h-4 w-4" /> Skill ini dijalanin oleh agent di tool lo, bukan backend.</p>
               <p className="mt-1">
                 Download ZIP → install di PalHub desktop (store: <code className="rounded bg-white px-1">local:&lt;folder&gt;</code>) → inject ke Cursor/Codex/Claude Code/OpenCode.
                 Setelah itu prompt <b>"gunakan development cycle untuk develop aplikasi finance"</b> di tool lo bakal nge-trigger skill ini + knowledge pajaknya.
@@ -353,15 +384,15 @@ export default function PipelineDetail() {
             </div>
 
             <div className="mt-4 flex items-center gap-3">
-              <a className="action-primary inline-flex" href={api.exportPipelineSkillZipUrl(pipelineId)}>
-                ⬇️ Download {exportData.skill_name}.zip
+              <a className="action-primary inline-flex items-center gap-1.5" href={api.exportPipelineSkillZipUrl(pipelineId)}>
+                <Download className="h-4 w-4" /> Download {exportData.skill_name}.zip
               </a>
             </div>
 
             <h3 className="mt-5 text-sm font-bold text-slate-800">File ({exportData.files.length})</h3>
             <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2 font-mono text-xs text-slate-600">
               {exportData.files.map((f) => (
-                <div key={f.path} className="truncate px-1 py-0.5">📄 {f.path}</div>
+                <div key={f.path} className="truncate px-1 py-0.5"><FileText className="mr-1 inline h-3 w-3" />{f.path}</div>
               ))}
             </div>
 
