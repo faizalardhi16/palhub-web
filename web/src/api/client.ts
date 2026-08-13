@@ -1,4 +1,4 @@
-import type { Knowledge, Procedure, Specialist, Tool, ToolRunResult } from "../types";
+import type { Knowledge, KnowledgePage, Procedure, Specialist, Tool, ToolRunResult } from "../types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -51,6 +51,9 @@ export const api = {
 
   // Knowledge
   listKnowledge: (specialistId: number) => request<Knowledge[]>(`/api/specialists/${specialistId}/knowledge`),
+  listKnowledgePaged: (specialistId: number, page = 1, limit = 10) =>
+    request<KnowledgePage>(`/api/specialists/${specialistId}/knowledge?page=${page}&limit=${limit}`),
+  getKnowledge: (id: number) => request<Knowledge>(`/api/knowledge/${id}`),
   createKnowledge: (specialistId: number, body: { title: string; content: string; source: string }) =>
     request<Knowledge>(`/api/specialists/${specialistId}/knowledge`, {
       method: "POST",

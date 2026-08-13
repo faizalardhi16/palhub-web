@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import type { Knowledge } from "../domain/types.js";
+import type { Knowledge, KnowledgePage } from "../domain/types.js";
 import { knowledgeCreateSchema } from "../domain/schemas.js";
 
 export class KnowledgeService {
@@ -9,6 +9,30 @@ export class KnowledgeService {
     return this.db
       .prepare("SELECT * FROM knowledge WHERE specialist_id = ? ORDER BY id DESC LIMIT ?")
       .all(specialistId, limit) as Knowledge[];
+  }
+
+  listBySpecialistPaged(specialistId: number, page = 1, limit = 10): KnowledgePage {
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(100, Math.max(1, limit));
+    const offset = (safePage - 1) * safeLimit;
+
+    const total = (this.db
+      .prepare("SELECT COUNT(*) AS c FROM knowledge WHERE specialist_id = ?")
+      .get(specialistId) as { c: number }).c;
+
+    const items = this.db
+      .prepare(
+        "SELECT * FROM knowledge WHERE specialist_id = ? ORDER BY id DESC LIMIT ? OFFSET ?"
+      )
+      .all(specialistId, safeLimit, offset) as Knowledge[];
+
+    return {
+      items,
+      total,
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.max(1, Math.ceil(total / safeLimit)),
+    };
   }
 
   get(id: number): Knowledge {

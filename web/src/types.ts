@@ -38,6 +38,14 @@ export interface Knowledge {
   created_at: string;
 }
 
+export interface KnowledgePage {
+  items: Knowledge[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export interface ToolRunResult {
   content: string;
   artifacts: string[];

@@ -15,7 +15,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { Knowledge, Procedure, Tool } from "../types";
+import type { Knowledge, KnowledgePage, Procedure, Tool } from "../types";
 
 type Tab = "tools" | "procedures" | "knowledge";
 
@@ -76,11 +76,15 @@ export default function SpecialistDetail() {
   const [description, setDescription] = useState("");
   const [tools, setTools] = useState<Tool[]>([]);
   const [procedures, setProcedures] = useState<Procedure[]>([]);
-  const [knowledge, setKnowledge] = useState<Knowledge[]>([]);
+  const [knowledgePage, setKnowledgePage] = useState<KnowledgePage>({ items: [], total: 0, page: 1, limit: 6, totalPages: 1 });
+  const [knowledgePageNum, setKnowledgePageNum] = useState(1);
+  const [detailItem, setDetailItem] = useState<Knowledge | null>(null);
   const [toolForm, setToolForm] = useState(EMPTY_TOOL);
   const [procedureForm, setProcedureForm] = useState(EMPTY_PROCEDURE);
   const [knowledgeForm, setKnowledgeForm] = useState(EMPTY_KNOWLEDGE);
   const [error, setError] = useState("");
+
+  const KNOWLEDGE_PAGE_SIZE = 6;
 
   const specialistSlug = useMemo(() => {
     const normalized = name.trim().toLowerCase().replace(/\s+/g, "_");
@@ -89,11 +93,10 @@ export default function SpecialistDetail() {
 
   const load = useCallback(async () => {
     try {
-      const [spec, ts, ps, ks] = await Promise.all([
+      const [spec, ts, ps] = await Promise.all([
         api.listSpecialists(),
         api.listTools(specialistId),
         api.listProcedures(specialistId),
-        api.listKnowledge(specialistId),
       ]);
       const found = spec.find((item) => item.id === specialistId);
       if (found) {
@@ -102,16 +105,39 @@ export default function SpecialistDetail() {
       }
       setTools(ts);
       setProcedures(ps);
-      setKnowledge(ks);
       setError("");
     } catch (e) {
       setError((e as Error).message);
     }
   }, [specialistId]);
 
+  const loadKnowledge = useCallback(async () => {
+    try {
+      const page = await api.listKnowledgePaged(specialistId, knowledgePageNum, KNOWLEDGE_PAGE_SIZE);
+      setKnowledgePage(page);
+      setError("");
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }, [specialistId, knowledgePageNum]);
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void loadKnowledge();
+  }, [loadKnowledge]);
+
+  const refreshKnowledge = useCallback(async () => {
+    // Kalau halaman terakhir cuma punya 1 item dan itu ke-hapus, mundur 1 halaman.
+    const page = await api.listKnowledgePaged(specialistId, knowledgePageNum, KNOWLEDGE_PAGE_SIZE);
+    if (page.items.length === 0 && page.page > 1) {
+      setKnowledgePageNum(page.page - 1);
+    } else {
+      setKnowledgePage(page);
+    }
+  }, [specialistId, knowledgePageNum]);
 
   const createTool = async () => {
     try {
@@ -137,7 +163,9 @@ export default function SpecialistDetail() {
     try {
       await api.createKnowledge(specialistId, knowledgeForm);
       setKnowledgeForm(EMPTY_KNOWLEDGE);
-      await load();
+      // Balik ke halaman 1 biar item baru keliatan (list diurut DESC).
+      setKnowledgePageNum(1);
+      await refreshKnowledge();
     } catch (e) {
       setError((e as Error).message);
     }
@@ -197,7 +225,7 @@ export default function SpecialistDetail() {
           </div>
           <div className="panel-surface-strong bg-gradient-to-br from-sky-50 to-white p-5">
             <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">Stored context</div>
-            <div className="mt-3 font-display text-5xl font-bold tracking-[-0.08em] text-slate-950">{knowledge.length}</div>
+            <div className="mt-3 font-display text-5xl font-bold tracking-[-0.08em] text-slate-950">{knowledgePage.total}</div>
             <p className="mt-2 text-sm leading-6 text-slate-600">Context that keeps specialist output anchored.</p>
           </div>
         </div>
@@ -219,7 +247,7 @@ export default function SpecialistDetail() {
             <Icon className="h-4 w-4" />
             <span>{label}</span>
             <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-slate-500">
-              {key === "tools" ? tools.length : key === "procedures" ? procedures.length : knowledge.length}
+              {key === "tools" ? tools.length : key === "procedures" ? procedures.length : knowledgePage.total}
             </span>
           </button>
         ))}
@@ -405,33 +433,138 @@ export default function SpecialistDetail() {
             <div className="panel-surface p-6">
               <SectionHeader eyebrow="Stored Context" title="Knowledge entries" chip="Specialist-scoped retrieval" icon={Orbit} />
               <div className="mt-6 space-y-4">
-                {knowledge.length === 0 ? (
+                {knowledgePage.items.length === 0 ? (
                   <div className="rounded-[24px] border border-dashed border-slate-200 bg-white/70 p-6 text-sm text-slate-600">
                     Belum ada knowledge. Jalankan crawl atau tambahkan pengetahuan manual agar specialist ini punya context yang hidup.
                   </div>
                 ) : (
-                  knowledge.map((item) => (
-                    <motion.article key={item.id} layout className="panel-surface-strong flex flex-col gap-4 p-5 md:flex-row md:items-start md:justify-between">
-                      <div className="min-w-0 space-y-3">
-                        <div>
-                          <h4 className="font-display text-xl font-bold tracking-[-0.04em] text-slate-950">{item.title}</h4>
-                          <p className="mt-1 text-sm leading-6 text-slate-600">{item.content.slice(0, 220)}{item.content.length > 220 ? "..." : ""}</p>
+                  <>
+                    {knowledgePage.items.map((item) => (
+                      <motion.article key={item.id} layout className="panel-surface-strong flex flex-col gap-4 p-5 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0 space-y-3">
+                          <div>
+                            <h4 className="font-display text-xl font-bold tracking-[-0.04em] text-slate-950">{item.title}</h4>
+                            <p className="mt-1 text-sm leading-6 text-slate-600">{item.content.slice(0, 220)}{item.content.length > 220 ? "..." : ""}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2 text-xs">
+                            <span className="metric-chip">Source: {item.source || "manual entry"}</span>
+                            <span className="metric-chip">{item.content.length.toLocaleString("id-ID")} chars</span>
+                            <span className="metric-chip">Created: {formatDate(item.created_at)}</span>
+                          </div>
                         </div>
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          <span className="metric-chip">Source: {item.source || "manual entry"}</span>
-                          <span className="metric-chip">Created: {formatDate(item.created_at)}</span>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button className="action-secondary !px-4 !py-2.5" onClick={() => setDetailItem(item)}>
+                            <FileSearch className="h-4 w-4" />
+                            <span>Detail</span>
+                          </button>
+                          <button className="action-danger !px-4 !py-2.5" onClick={async () => { await api.deleteKnowledge(item.id); await refreshKnowledge(); }}>
+                            <Trash2 className="h-4 w-4" />
+                            <span>Hapus</span>
+                          </button>
+                        </div>
+                      </motion.article>
+                    ))}
+
+                    {knowledgePage.totalPages > 1 && (
+                      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5">
+                        <span className="text-sm font-medium text-slate-600">
+                          Menampilkan {((knowledgePage.page - 1) * knowledgePage.limit) + 1}–
+                          {Math.min(knowledgePage.page * knowledgePage.limit, knowledgePage.total)} dari {knowledgePage.total} entri
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            className="action-secondary !px-4 !py-2"
+                            disabled={knowledgePage.page <= 1}
+                            onClick={() => setKnowledgePageNum((p) => Math.max(1, p - 1))}
+                          >
+                            ← Prev
+                          </button>
+                          <span className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
+                            {knowledgePage.page} / {knowledgePage.totalPages}
+                          </span>
+                          <button
+                            className="action-secondary !px-4 !py-2"
+                            disabled={knowledgePage.page >= knowledgePage.totalPages}
+                            onClick={() => setKnowledgePageNum((p) => Math.min(knowledgePage.totalPages, p + 1))}
+                          >
+                            Next →
+                          </button>
                         </div>
                       </div>
-                      <button className="action-danger" onClick={async () => { await api.deleteKnowledge(item.id); await load(); }}>
-                        <Trash2 className="h-4 w-4" />
-                        <span>Hapus</span>
-                      </button>
-                    </motion.article>
-                  ))
+                    )}
+                  </>
                 )}
               </div>
             </div>
           </motion.section>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {detailItem && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm"
+            onClick={() => setDetailItem(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: 10 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="flex max-h-[86vh] w-full max-w-3xl flex-col overflow-hidden rounded-[28px] border border-white/60 bg-white shadow-[0_40px_90px_rgba(15,23,42,0.35)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+                <div className="min-w-0 space-y-1.5">
+                  <span className="eyebrow">Knowledge Detail</span>
+                  <h3 className="truncate font-display text-2xl font-bold tracking-[-0.04em] text-slate-950">
+                    {detailItem.title}
+                  </h3>
+                </div>
+                <button
+                  className="action-secondary !px-3.5 !py-2.5 shrink-0"
+                  onClick={() => setDetailItem(null)}
+                  aria-label="Tutup"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-2 border-b border-slate-200 bg-slate-50/70 px-6 py-3 text-xs">
+                <span className="metric-chip">Source: {detailItem.source || "manual entry"}</span>
+                <span className="metric-chip">{detailItem.content.length.toLocaleString("id-ID")} chars</span>
+                <span className="metric-chip">Created: {formatDate(detailItem.created_at)}</span>
+                <span className="metric-chip">ID: #{detailItem.id}</span>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+                <pre className="whitespace-pre-wrap break-words font-mono text-[13px] leading-6 text-slate-800">
+                  {detailItem.content}
+                </pre>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+                <button className="action-secondary" onClick={() => setDetailItem(null)}>
+                  Tutup
+                </button>
+                <button
+                  className="action-danger"
+                  onClick={async () => {
+                    await api.deleteKnowledge(detailItem.id);
+                    setDetailItem(null);
+                    await refreshKnowledge();
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Hapus</span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
