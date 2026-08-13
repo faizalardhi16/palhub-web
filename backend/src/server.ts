@@ -2,7 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { join } from "node:path";
 import { getDb } from "./db/connection.js";
-import { seedIfEmpty, ensureSeedTools } from "./db/seed.js";
+import { seedIfEmpty, ensureSeedTools, ensureDevelopmentCycle } from "./db/seed.js";
 import { config } from "./config.js";
 import { OpenAiCompatibleLlmClient } from "./llm/client.js";
 import { WebSearchService } from "./services/search.service.js";
@@ -12,6 +12,7 @@ import { ToolService } from "./services/tool.service.js";
 import { KnowledgeService } from "./services/knowledge.service.js";
 import { PlaygroundService } from "./services/playground.service.js";
 import { PipelineService } from "./services/pipeline.service.js";
+import { SkillExportService } from "./services/skill-export.service.js";
 import { ToolExecutorRegistry } from "./engines/registry.js";
 import { CrawlExecutor } from "./engines/crawl.executor.js";
 import { GenerateDocExecutor } from "./engines/generate-doc.executor.js";
@@ -35,6 +36,10 @@ async function main(): Promise<void> {
   const migratedTools = ensureSeedTools(db);
   if (migratedTools > 0) {
     console.log(`🧬 Migration: +${migratedTools} tool ditambahkan ke specialist existing`);
+  }
+  const seededPipeline = ensureDevelopmentCycle(db);
+  if (seededPipeline > 0) {
+    console.log(`🔄 Seed pipeline: Development Cycle ditambahkan`);
   }
 
   // --- Dependencies (DI graph) ---
@@ -63,6 +68,7 @@ async function main(): Promise<void> {
   });
 
   const pipeline = new PipelineService({ db, specialistService, knowledge, llm });
+  const skillExport = new SkillExportService(db, pipeline, specialistService, knowledge);
 
   const mcp = new PalhubMcpServer({
     registry,
@@ -85,7 +91,7 @@ async function main(): Promise<void> {
   registerProcedureRoutes(app, procedureService);
   registerKnowledgeRoutes(app, knowledge);
   registerPlaygroundRoutes(app, playground);
-  registerPipelineRoutes(app, pipeline);
+  registerPipelineRoutes(app, pipeline, skillExport);
 
   // Static frontend (web/dist) — UI + API + MCP satu origin
   registerStatic(app, join(process.cwd(), "../web/dist"));

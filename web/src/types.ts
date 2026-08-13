@@ -107,3 +107,25 @@ export interface PipelineRunEvent {
 export interface PipelineRunDetail extends PipelineRun {
   events: PipelineRunEvent[];
 }
+
+// --- Skill export ---
+
+export interface SkillExportFile {
+  path: string;
+  content: string;
+}
+
+export interface SkillExport {
+  skill_name: string;
+  pipeline_id: number;
+  generated_at: string;
+  stats: {
+    stages: number;
+    specialists: number;
+    knowledge_notes: number;
+    junk_filtered: number;
+    duplicate_filtered: number;
+  };
+  files: SkillExportFile[];
+  skill_md: string;
+}

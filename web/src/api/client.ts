@@ -7,6 +7,7 @@ import type {
   PipelineRunDetail,
   PipelineStage,
   Procedure,
+  SkillExport,
   Specialist,
   Tool,
   ToolRunResult,
@@ -104,4 +105,9 @@ export const api = {
     request<PipelineRunDetail>(`/api/pipelines/${pipelineId}/run`, { method: "POST" }),
   listRuns: (pipelineId: number) => request<PipelineRun[]>(`/api/pipelines/${pipelineId}/runs`),
   getRun: (runId: number) => request<PipelineRunDetail>(`/api/runs/${runId}`),
+
+  // Skill export — pipeline → SKILL.md + knowledge bundle
+  exportPipelineSkill: (pipelineId: number) =>
+    request<SkillExport>(`/api/pipelines/${pipelineId}/export`),
+  exportPipelineSkillZipUrl: (pipelineId: number) => `/api/pipelines/${pipelineId}/export?format=zip`,
 };

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { PipelineDetail, PipelineRunDetail, PipelineStage, Specialist } from "../types";
+import type { PipelineDetail, PipelineRunDetail, PipelineStage, SkillExport, Specialist } from "../types";
 
 const EVENT_LABEL: Record<string, { icon: string; cls: string; label: string }> = {
   stage_start: { icon: "▶️", cls: "text-slate-700 bg-slate-100", label: "Stage mulai" },
@@ -26,6 +26,9 @@ export default function PipelineDetail() {
   const [running, setRunning] = useState(false);
   const [activeRun, setActiveRun] = useState<PipelineRunDetail | null>(null);
   const [runs, setRuns] = useState<PipelineRunDetail["status"] extends never ? never : import("../types").PipelineRun[]>([]);
+  // skill export
+  const [exporting, setExporting] = useState(false);
+  const [exportData, setExportData] = useState<SkillExport | null>(null);
 
   // form stage baru
   const [stageSpecialist, setStageSpecialist] = useState("");
@@ -145,6 +148,20 @@ export default function PipelineDetail() {
     }
   };
 
+  const exportSkill = async () => {
+    if (!pipeline) return;
+    try {
+      setError("");
+      setExporting(true);
+      const exp = await api.exportPipelineSkill(pipelineId);
+      setExportData(exp);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const specialistName = (id: number) => specialists.find((s) => s.id === id)?.name ?? `#${id}`;
 
   if (loading) return <main className="page-shell"><div className="mt-8 text-center text-slate-500">Loading...</div></main>;
@@ -161,9 +178,14 @@ export default function PipelineDetail() {
           <h1 className="mt-2 font-display text-3xl font-bold tracking-[-0.05em] text-slate-950">{pipeline.name}</h1>
           {pipeline.description && <p className="mt-2 max-w-2xl text-[15px] leading-7 text-slate-600">{pipeline.description}</p>}
         </div>
-        <button className="action-primary" disabled={running || pipeline.stages.length === 0} onClick={run}>
-          {running ? "⏳ Running..." : "▶️ Run Pipeline"}
-        </button>
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+          <button className="action-secondary" disabled={exporting} onClick={exportSkill}>
+            {exporting ? "⏳ Exporting..." : "⬇️ Export Skill"}
+          </button>
+          <button className="action-primary" disabled={running || pipeline.stages.length === 0} onClick={run}>
+            {running ? "⏳ Running..." : "▶️ Run Pipeline"}
+          </button>
+        </div>
       </header>
 
       {error && <div className="notice mt-4 !text-rose-700 !border-rose-200 !bg-rose-50">{error}</div>}
@@ -301,6 +323,55 @@ export default function PipelineDetail() {
           </div>
         </section>
       </div>
+
+      {/* Modal: hasil export skill */}
+      {exportData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={() => setExportData(null)}>
+          <div className="max-h-[85vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="font-display text-2xl font-bold text-slate-950">Skill: {exportData.skill_name}</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {exportData.stats.stages} stage · {exportData.stats.specialists} specialist · {exportData.stats.knowledge_notes} catatan knowledge
+                  {exportData.stats.junk_filtered > 0 && (
+                    <span className="text-rose-500"> · {exportData.stats.junk_filtered} sampah crawl di-filter</span>
+                  )}
+                  {exportData.stats.duplicate_filtered > 0 && (
+                    <span className="text-amber-500"> · {exportData.stats.duplicate_filtered} duplikat di-skip</span>
+                  )}
+                </p>
+              </div>
+              <button className="btn small" onClick={() => setExportData(null)}>✕</button>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">
+              <p className="font-bold">💡 Skill ini dijalanin oleh agent di tool lo, bukan backend.</p>
+              <p className="mt-1">
+                Download ZIP → install di PalHub desktop (store: <code className="rounded bg-white px-1">local:&lt;folder&gt;</code>) → inject ke Cursor/Codex/Claude Code/OpenCode.
+                Setelah itu prompt <b>"gunakan development cycle untuk develop aplikasi finance"</b> di tool lo bakal nge-trigger skill ini + knowledge pajaknya.
+              </p>
+            </div>
+
+            <div className="mt-4 flex items-center gap-3">
+              <a className="action-primary inline-flex" href={api.exportPipelineSkillZipUrl(pipelineId)}>
+                ⬇️ Download {exportData.skill_name}.zip
+              </a>
+            </div>
+
+            <h3 className="mt-5 text-sm font-bold text-slate-800">File ({exportData.files.length})</h3>
+            <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2 font-mono text-xs text-slate-600">
+              {exportData.files.map((f) => (
+                <div key={f.path} className="truncate px-1 py-0.5">📄 {f.path}</div>
+              ))}
+            </div>
+
+            <h3 className="mt-5 text-sm font-bold text-slate-800">SKILL.md preview</h3>
+            <pre className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-950 p-4 font-mono text-xs leading-5 text-emerald-300">
+              {exportData.skill_md}
+            </pre>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

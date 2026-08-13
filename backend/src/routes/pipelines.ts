@@ -1,5 +1,7 @@
 import type { FastifyInstance } from "fastify";
+import JSZip from "jszip";
 import type { PipelineService } from "../services/pipeline.service.js";
+import type { SkillExportService } from "../services/skill-export.service.js";
 import {
   pipelineCreateSchema,
   pipelineStageCreateSchema,
@@ -8,7 +10,11 @@ import {
   pipelineUpdateSchema,
 } from "../domain/schemas.js";
 
-export function registerPipelineRoutes(app: FastifyInstance, pipeline: PipelineService): void {
+export function registerPipelineRoutes(
+  app: FastifyInstance,
+  pipeline: PipelineService,
+  skillExport?: SkillExportService
+): void {
   // CRUD pipelines
   app.get("/api/pipelines", async () => pipeline.list());
 
@@ -112,4 +118,28 @@ export function registerPipelineRoutes(app: FastifyInstance, pipeline: PipelineS
       return reply.code(404).send({ error: (error as Error).message });
     }
   });
+
+  // Skill export — pipeline → SKILL.md + knowledge bundle (untuk di-inject
+  // ke Cursor/Codex/Claude Code/OpenCode; agent di tool yang menjalankannya).
+  if (skillExport) {
+    app.get("/api/pipelines/:id/export", async (request, reply) => {
+      try {
+        const id = Number((request.params as { id: string }).id);
+        const exp = skillExport.exportPipeline(id);
+        const format = (request.query as { format?: string }).format;
+        if (format === "zip") {
+          const zip = new JSZip();
+          for (const file of exp.files) zip.file(file.path, file.content);
+          const buffer = await zip.generateAsync({ type: "nodebuffer" });
+          return reply
+            .header("Content-Type", "application/zip")
+            .header("Content-Disposition", `attachment; filename="${exp.skill_name}.zip"`)
+            .send(buffer);
+        }
+        return exp;
+      } catch (error) {
+        return reply.code(400).send({ error: (error as Error).message });
+      }
+    });
+  }
 }
