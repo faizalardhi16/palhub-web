@@ -6,28 +6,34 @@ import { z } from "zod";
 import type { PlaygroundDeps } from "../services/playground.service.js";
 import { slugify } from "../util.js";
 
+interface McpSession {
+  transport: StreamableHTTPServerTransport;
+  server: McpServer;
+}
+
 /**
  * PalhubMcpServer — exposes every specialist's tools as MCP tools
  * over Streamable HTTP. Tool name: <specialist>_<tool> (e.g. finance_crawl).
- * Consumed by Cursor / Codex / Claude Code etc.
+ * Consumed by Cursor / Codex / Claude Code / OpenCode etc.
+ *
+ * IMPORTANT: one McpServer instance can connect to only ONE transport
+ * (the SDK throws "Already connected"). So each client session gets its
+ * own McpServer + transport pair, stored in `sessions` by session id.
  */
 export class PalhubMcpServer {
-  private readonly server: McpServer;
-  private readonly transports = new Map<string, StreamableHTTPServerTransport>();
+  private readonly sessions = new Map<string, McpSession>();
 
-  constructor(private readonly deps: PlaygroundDeps) {
-    this.server = new McpServer({ name: "palhub", version: "0.1.0" });
-    this.registerTools();
-  }
+  constructor(private readonly deps: PlaygroundDeps) {}
 
-  private registerTools(): void {
+  private createServer(): McpServer {
+    const server = new McpServer({ name: "palhub", version: "0.1.0" });
     const tools = this.deps.toolService.listAll();
 
     for (const tool of tools) {
       const specialist = this.deps.specialistService.get(tool.specialist_id);
       const name = `${slugify(specialist.name)}_${slugify(tool.name)}`;
 
-      this.server.registerTool(
+      server.registerTool(
         name,
         {
           title: `${specialist.name} — ${tool.name}`,
@@ -56,22 +62,50 @@ export class PalhubMcpServer {
         }
       );
     }
+
+    return server;
   }
 
   async handle(req: IncomingMessage, res: ServerResponse, body: unknown): Promise<void> {
-    const sessionId = req.headers["mcp-session-id"] as string | undefined;
-    let transport = sessionId ? this.transports.get(sessionId) : undefined;
+    try {
+      const sessionId = req.headers["mcp-session-id"] as string | undefined;
+      let session = sessionId ? this.sessions.get(sessionId) : undefined;
 
-    if (!transport) {
-      transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        onsessioninitialized: (id) => {
-          this.transports.set(id, transport!);
-        },
-      });
-      await this.server.connect(transport);
+      if (!session) {
+        let transport: StreamableHTTPServerTransport;
+        let server: McpServer;
+
+        transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => randomUUID(),
+          onsessioninitialized: (id) => {
+            const sess = { transport, server };
+            this.sessions.set(id, sess);
+            transport.onclose = () => {
+              this.sessions.delete(id);
+            };
+          },
+        });
+        server = this.createServer();
+        await server.connect(transport);
+        session = { transport, server };
+      }
+
+      await session.transport.handleRequest(req, res, body);
+    } catch (error) {
+      // Reply is hijacked by Fastify — we must write the error ourselves,
+      // otherwise the client hangs forever.
+      if (!res.headersSent) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            error: { code: -32603, message: String(error) },
+            id: null,
+          })
+        );
+      } else {
+        res.end();
+      }
     }
-
-    await transport.handleRequest(req, res, body);
   }
 }
