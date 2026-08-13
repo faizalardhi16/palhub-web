@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { PlaygroundDeps } from "../services/playground.service.js";
 import type { PipelineService } from "../services/pipeline.service.js";
 import type { SkillExportService } from "../services/skill-export.service.js";
+import { deriveTags } from "../services/skill-export.service.js";
 import { slugify } from "../util.js";
 
 interface McpSession {
@@ -179,6 +180,31 @@ export class PalhubMcpServer {
       async ({ task }) => {
         const plan = this.buildOrchestratorPlan(task);
         return { content: [{ type: "text", text: plan }] };
+      }
+    );
+
+    // knowledge_topics — intip topik/daftar isi knowledge tanpa baca semua
+    server.registerTool(
+      "knowledge_topics",
+      {
+        title: "Knowledge topics (catalog)",
+        description:
+          "Daftar isi knowledge per specialist: nama, jumlah catatan, dan tags topik. Buat agent yang mau tau 'ada apa aja' sebelum search — hemat token, gak perlu baca semua index.",
+        inputSchema: {},
+      },
+      async () => {
+        const lines: string[] = ["## Knowledge Topics", ""];
+        const specialists = this.deps.specialistService.list();
+        for (const spec of specialists) {
+          const notes = this.deps.knowledge.listBySpecialist(spec.id, 500);
+          const tags = [...new Set(notes.flatMap((n) => deriveTags(n.title, n.source)))];
+          lines.push(
+            `**#${spec.id} ${spec.name}** (${notes.length} catatan)${tags.length ? ` — tags: ${tags.join(", ")}` : ""}`
+          );
+        }
+        lines.push("");
+        lines.push("Pakai `knowledge_search` dengan `specialist_id` kalau mau cari di cabang tertentu.");
+        return { content: [{ type: "text", text: lines.join("\n") }] };
       }
     );
 
