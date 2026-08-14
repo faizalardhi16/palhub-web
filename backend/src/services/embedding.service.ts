@@ -217,56 +217,78 @@ export class EmbeddingService {
     const wantKeyword = mode === "hybrid" || mode === "keyword";
     const wantSemantic = (mode === "hybrid" || mode === "semantic") && modelReady;
 
-    const hits = new Map<number, HybridHit & { _kw?: number; _vec?: number }>();
-
-    // 1) Keyword: FTS5 top-K
-    if (wantKeyword) {
-      const kwHits = this.keywordSearch(query, specialistId, limit * 4);
-      for (const h of kwHits) {
-        const prev = hits.get(h.id);
-        hits.set(h.id, { ...h, _kw: h.score, _vec: prev?._vec });
-      }
-    }
-
-    // 2) Semantic: cosine top-K (skip kalau model gak siap)
+    // Dua list ranking terpisah (keyword + semantic), di-fusion pake RRF.
+    const kwHits: HybridHit[] = wantKeyword ? this.keywordSearch(query, specialistId, limit * 4) : [];
+    let vecHits: HybridHit[] = [];
     if (wantSemantic) {
       try {
-        const vecHits = await this.vectorSearch(query, specialistId, limit * 4);
-        for (const h of vecHits) {
-          const prev = hits.get(h.id);
-          hits.set(h.id, { ...h, _vec: h.score, _kw: prev?._kw });
-        }
+        vecHits = await this.vectorSearch(query, specialistId, limit * 4);
       } catch (error) {
         console.warn("⚠️ Semantic search gagal:", (error as Error).message);
       }
     }
 
-    // 3) Merge + score
-    //    Di korpus kecil, BM25 OR itu sinyal lemah (semua doc match ≥1 term).
-    //    Jadi: keyword pakai term-ratio (berapa term query yang ADA di doc),
-    //    semantic jadi penentu utama; doc yang ke-hits dua-duanya di-boost.
+    // RRF (Reciprocal Rank Fusion): skor = Σ 1/(K + rank). Skala keyword
+    // (term-ratio 0.4-0.9) vs semantic (cosine 0.2-0.4) beda jauh — kalau
+    // di-blend pake skor mentah, semantic match (yang justru paling relevan)
+    // selalu kalah rank sama keyword-lucky doc. RRF pakai RANK, jadi dua
+    // sinyal setara; doc yang muncul di dua-duanya menang natural.
+    const K = 60;
     const SEMANTIC_MIN = 0.22;
-    const results: HybridHit[] = [];
-    for (const h of hits.values()) {
-      const kw = h._kw ?? 0;
-      const vec = h._vec ?? 0;
-      let score: number;
-      let method: HybridHit["method"];
-      if (h._kw !== undefined && h._vec !== undefined) {
-        score = 0.4 * kw + 0.6 * vec;
-        method = "hybrid";
-      } else if (h._vec !== undefined) {
-        if (vec < SEMANTIC_MIN) continue; // too noisy, drop
-        score = vec;
-        method = "semantic";
+    type Entry = {
+      hit: HybridHit;
+      rrf: number;
+      inKw: boolean;
+      inVec: boolean;
+      kwScore?: number;
+      vecScore?: number;
+    };
+    const entries = new Map<number, Entry>();
+    const add = (rank: number, h: HybridHit, list: "kw" | "vec"): void => {
+      const cur = entries.get(h.id);
+      if (cur) {
+        cur.rrf += 1 / (K + rank);
+        if (list === "kw") {
+          cur.inKw = true;
+          cur.kwScore = h.score;
+        } else {
+          cur.inVec = true;
+          cur.vecScore = h.score;
+        }
       } else {
-        score = kw;
-        method = "keyword";
+        entries.set(h.id, {
+          hit: h,
+          rrf: 1 / (K + rank),
+          inKw: list === "kw",
+          inVec: list === "vec",
+          kwScore: list === "kw" ? h.score : undefined,
+          vecScore: list === "vec" ? h.score : undefined,
+        });
       }
-      results.push({ id: h.id, specialist_id: h.specialist_id, title: h.title, content: h.content, source: h.source, created_at: h.created_at, score, method });
-    }
-    results.sort((a, b) => b.score - a.score);
-    return results.slice(0, limit);
+    };
+    kwHits.forEach((h, i) => add(i + 1, h, "kw"));
+    vecHits.forEach((h, i) => add(i + 1, h, "vec"));
+
+    const ranked = [...entries.values()]
+      // Semantic-only noise floor: doc yang relevansi semantiknya rendah
+      // gak boleh masuk cuma gara-gara dapet rank (RRF nilai absolut kecil).
+      .filter((e) => e.inKw || (e.vecScore ?? 0) >= SEMANTIC_MIN)
+      .sort((a, b) => b.rrf - a.rrf)
+      .slice(0, limit);
+
+    return ranked.map((e) => {
+      const method: HybridHit["method"] =
+        e.inKw && e.inVec ? "hybrid" : e.inVec ? "semantic" : "keyword";
+      // Display score: skala lama biar %-nya tetap meaningful di UI,
+      // urutan tetap berdasarkan RRF.
+      const score =
+        method === "hybrid"
+          ? 0.4 * (e.kwScore ?? 0) + 0.6 * (e.vecScore ?? 0)
+          : method === "semantic"
+            ? (e.vecScore ?? 0)
+            : (e.kwScore ?? 0);
+      return { ...e.hit, score, method };
+    });
   }
 
   /** Keyword-only (FTS5). Pakai OR antar term biar query gak ke-kunci AND. */
