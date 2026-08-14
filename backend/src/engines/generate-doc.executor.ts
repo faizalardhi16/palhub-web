@@ -25,6 +25,13 @@ export class GenerateDocExecutor implements ToolExecutor {
 
     await ctx.knowledge.create(ctx.specialist.id, title, markdown, `procedure:${ctx.procedure?.name ?? "default"}`);
 
+    // Embedding wajib di-trigger di sini juga — kalau tidak, note hasil
+    // generate_doc gak ke-embed dan gak ketemu di semantic search
+    // (bug: #113-115 di UI Specialist missing embedding).
+    if (ctx.embedding?.enabled) {
+      void ctx.embedding.backfill().catch(() => {});
+    }
+
     return { content: markdown, artifacts: [artifactPath] };
   }
 

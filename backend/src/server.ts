@@ -83,6 +83,7 @@ async function main(): Promise<void> {
     knowledge,
     llm,
     dataDir: config.dataDir,
+    embedding,
   });
 
   const pipeline = new PipelineService({ db, specialistService, knowledge, llm });

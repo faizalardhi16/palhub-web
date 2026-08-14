@@ -74,6 +74,7 @@ export class PalhubMcpServer {
             knowledge: this.deps.knowledge,
             procedure,
             dataDir: this.deps.dataDir,
+            embedding: this.deps.embedding,
           });
 
           return { content: [{ type: "text", text: result.content }] };

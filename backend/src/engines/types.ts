@@ -1,4 +1,5 @@
 import type { LlmClient } from "../llm/client.js";
+import type { EmbeddingService } from "../services/embedding.service.js";
 import type { KnowledgeService } from "../services/knowledge.service.js";
 import type { Procedure, Specialist, Tool } from "../domain/types.js";
 
@@ -10,6 +11,9 @@ export interface ToolExecutionContext {
   knowledge: KnowledgeService;
   procedure?: Procedure;
   dataDir: string;
+  /** Optional — executor yang nyimpen knowledge wajib trigger backfill biar
+   *  note baru ke-embed (semantic search). Fire-and-forget, error di-swallow. */
+  embedding?: EmbeddingService;
 }
 
 export interface ToolExecutionResult {

@@ -1,4 +1,5 @@
 import type { LlmClient } from "../llm/client.js";
+import type { EmbeddingService } from "../services/embedding.service.js";
 import type { KnowledgeService } from "./knowledge.service.js";
 import type { ProcedureService } from "./procedure.service.js";
 import type { SpecialistService } from "./specialist.service.js";
@@ -14,6 +15,7 @@ export interface PlaygroundDeps {
   knowledge: KnowledgeService;
   llm: LlmClient;
   dataDir: string;
+  embedding?: EmbeddingService;
 }
 
 export class PlaygroundService {
@@ -37,6 +39,7 @@ export class PlaygroundService {
       knowledge: this.deps.knowledge,
       procedure,
       dataDir: this.deps.dataDir,
+      embedding: this.deps.embedding,
     });
   }
 }
