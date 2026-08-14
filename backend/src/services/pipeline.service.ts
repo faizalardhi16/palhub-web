@@ -193,6 +193,20 @@ export class PipelineService {
   // Runtime — agentic loop
   // -------------------------------------------------------------------------
 
+  /**
+   * Startup sweep — semua run yang masih 'running' dari proses sebelumnya
+   * dianggap mati (process restart membunuh eksekusi in-memory; row DB-nya
+   * nangkring selamanya kalau gak dibersihin → zombie run).
+   */
+  abortStaleRuns(): number {
+    const info = this.deps.db
+      .prepare(
+        "UPDATE pipeline_runs SET status = 'failed', finished_at = datetime('now'), error = ? WHERE status = 'running'"
+      )
+      .run("aborted: server restart (stale run)");
+    return info.changes;
+  }
+
   async run(pipelineId: number): Promise<PipelineRun> {
     const pipeline = this.get(pipelineId);
     if (pipeline.stages.length === 0) throw new Error("Pipeline kosong — tambah stage dulu");

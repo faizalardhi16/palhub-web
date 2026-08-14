@@ -87,6 +87,12 @@ async function main(): Promise<void> {
   });
 
   const pipeline = new PipelineService({ db, specialistService, knowledge, llm });
+  // Bersihin zombie run dari proses sebelumnya (client timeout / restart)
+  // — kalau gak, row 'running' nangkring selamanya di DB.
+  const staleRuns = pipeline.abortStaleRuns();
+  if (staleRuns > 0) {
+    console.log(`🧹 ${staleRuns} pipeline run stale di-mark failed (server restart)`);
+  }
   const skillExport = new SkillExportService(db, pipeline, specialistService, knowledge);
 
   const mcp = new PalhubMcpServer({
